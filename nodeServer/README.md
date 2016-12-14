@@ -4,4 +4,4 @@ TODO: Write the README.
 
 TODO
 ------------------------------------------------------------------------------------------------------------------------------------------
-[ ] Add form for setting up notifications
+- [ ] Add form for setting up notifications
