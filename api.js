@@ -5,10 +5,20 @@
  * Company: Little Squared, Inc.
  * Date: 12/11/2016
 /*************************************************************************************************************/
+
+//Check to make sure the mySQL config files was updated.
+var sqlConfig = require('./configs/mysqlConfig.js');
+if(sqlConfig.gardenShedConn.host == "[host]"){
+	console.error("You must configure your mysql connection. ./configs/mysqlConfig.js");
+	return;
+}
+sqlConfig = null;
+
 var express = require('express');
 var http = require('http');
 var path = require('path');
 var app = express();
+
 
 
 //Local Scripts
