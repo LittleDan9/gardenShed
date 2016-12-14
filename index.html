@@ -1,0 +1,111 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <link rel="stylesheet" type="text/css" href="/css/weather-icons.min.css">
+        <link rel="stylesheet" type="text/css" href="/css/site.css">
+        <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <script src="https://code.jquery.com/jquery-3.1.1.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8=" crossorigin="anonymous"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" integrity="sha256-VazP97ZCwtekAsvgPBSUwPFKdrwD3unUfSGVYrahUqU=" crossorigin="anonymous"></script>        
+        <script src="/js/weatherIconXref.js"></script>
+        <script src="/js/conditions.js"></script>
+    </head>
+    <body style="padding:10px;">
+        <div class="container-fluid">
+            <div class="row header">
+                <div class="col-sm-offset-0 col-sm-12 col-md-offset-1 col-md-10">
+                    <div class="panel panel-default">
+                        <div class="panel-heading text-center jumbotron">
+                            <h1 style="display:inline; vertical-align:middle;" class="heading">
+                                <div class="row">
+                                <div id="iconsLeft" class="col-sm-4 col-md-3">
+                                    <span class="glyphicon glyphicon-flash" style=""></span>
+                                    <span class="glyphicon glyphicon-cloud" style=""></span>
+                                </div>
+                                <div id="title" class="col-sm-4 col-md-6">
+                                    <span>Garden Shed Conditions</span>
+                                </div>
+                                <div id="iconsRight" class="col-sm-4 col-md-3">
+                                    <span class="glyphicon glyphicon-cloud" style=""></span>    
+                                    <span class="glyphicon glyphicon-flash" style=""></span>
+                                </div>
+                                </div>
+                            </h1>
+                        </div>
+                        <div class="panel-body content">
+                            <div class="row">
+                                <div class="col-sm-offset-1 col-sm-6">
+                                    <div id="inside">
+                                        <h1>Shed Conditions <button class="btn btn-default" id="btnRefreshShed"><span style="display:inline-block;" id="btnRefreshGlyph" class="glyphicon glyphicon-refresh"></span></button></h1>
+                                        <div id="obsTimeDiv" style="font-size:14pt;">Observed on: <span id="observationTime"></span></div>
+                                        <h2><i class="icon wi wi-thermometer"></i><span>&nbsp;Temperature:&nbsp;<span id="temp"></span></span></h2>
+                                        <h2><i class="icon wi wi-humidity"></i><span>&nbsp;Humidity:&nbsp;<span id="humid"></span></span></h2>
+                                    </div>
+                                    <hr>
+                                </div>
+                                <!--<div id="loading" class="col-sm-4 hidden">
+                                    <img src="/images/radio.gif"/>
+                                </div>                                -->
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-offset-1 col-sm-10">
+                                    <button class="btn btn-default" id="showExtConditions">Show Outside Conditions</button>
+                                    <div id="outside" class="hidden">
+                                        <h1>Outside Conditions <button class="btn btn-default" id="btnRefreshExt"><span class="glyphicon glyphicon-refresh"></span></button></h1>
+                                        <div style="font-size:14pt;">Observed on: <span id="extObservationTime"></span> from station <span id="extStationID"></span></div>
+                                        <h2><i id="extCondIcon" class="icon wi "></i>&nbsp;Currently:&nbsp;<span id="extCondition"></span></h2>
+                                        <h2><i class="icon wi wi-thermometer"></i>&nbsp;Temperature:&nbsp;<span id="extTemp"></span></h2>
+                                        <h2><i class="icon wi wi-humidity"></i>&nbsp;Humidity:&nbsp;<span id="extHumid"></span></h2>
+                                        <h2><i class="icon wi wi-cloudy-gusts"></i>&nbsp;Wind:&nbsp;<span id="extWind"></span></h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>    
+                    <div id="wuLogo" class="text-right hidden"><strong>Outside Conditions Provided By:&nbsp;&nbsp;</strong><a href="https://www.wunderground.com/?apiref=cd49dbb7619f6522"><img src="/images/wundergroundLogo_4c_horz.png" style="width:140px; margin-top:-12px;" /></a></div>        
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
+<script type="text/javascript">
+
+jQuery.fn.rotate = function() {
+    degrees = $(this).data("angle");
+    $(this).css({'-webkit-transform' : 'rotate('+ degrees +'deg)',
+                 '-moz-transform' : 'rotate('+ degrees +'deg)',
+                 '-ms-transform' : 'rotate('+ degrees +'deg)',
+                 'transform' : 'rotate('+ degrees +'deg)'});
+    $(this).data("angle", degrees + 5);                 
+};
+
+$(function(){
+    $('#btnRefreshGlyph').data("angle", 0);
+    resizeHeader();
+    getShedConditions();
+    //Uncomment to show Outside Conditions on load.
+    //getExtConditions();
+    setInterval(function(){getShedConditions();}, 60000 )
+});
+
+$(window).on("resize", function(){resizeHeader();});
+
+function resizeHeader(){
+    var titleHeight = $('#title').height();
+    $('#iconsLeft,#iconsRight').height(titleHeight).find('span').css('line-height', titleHeight.toString() + 'px');
+}
+
+$('#btnRefreshShed').on('click', function(){getShedConditions()});
+$('#showExtConditions').on('click', function(){
+    if($('#outside').hasClass('hidden')){
+        getExtConditions();
+        $(this).text('Hide Outside Conditions');        
+    } else {
+        $('#outside').addClass('hidden')
+        $('#wuLogo').addClass('hidden');
+        $(this).text('Show Outside Conditions');
+        
+    }
+
+})
+$('#btnRefreshExt').on('click', function(){getExtConditions()});
+</script>
