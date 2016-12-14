@@ -44,9 +44,7 @@ jspm_packages
 *.tgz
 
 # Yarn Integrity file
-.yarn-integrity
-<<<<<<< HEAD
-mysqlConfig.js
-=======
->>>>>>> 469ec122e2580a128a99f18b6aa44ada35af739e
-mysqlConfig.js
+.yarn-Integrity
+
+#sensitive files
+#mysqlConfig.js
