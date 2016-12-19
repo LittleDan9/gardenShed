@@ -14,7 +14,7 @@ local DHTBuffer = {};
 
 --PIN should be set to the proper GPIO pin that is connected to the DHT22 data pin.
 --Additionally, I added 10K Ohm Resister between 5v and Data
-local DHTPin = 1;
+local DHTPin = 2;
 
 --Convert to Fahrenheit
 local convertToF = true;
