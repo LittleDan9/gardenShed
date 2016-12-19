@@ -25,13 +25,16 @@ var conditionsByBoard = function(board, fromDB, callback){
     }    
     client.connect(options, function(data) {
         try{
-        client.write(command);
+            client.write(command);
         }catch(err){
+            console.error("Unable to connect to:" + options);
             console.error(err);
             client.destroy();
         }
     });    
-    client.on('data', function(data) {      
+    client.on('data', function(data) { 
+        if(data == '')  
+         return;
         try{
             //Parse the response a JSON object
             var response = JSON.parse(data);
@@ -40,6 +43,7 @@ var conditionsByBoard = function(board, fromDB, callback){
             var status = response.data.status;
             var observed = '';
             var isLive = false;
+            //console.log(response);
             if(response.data.status >= 0){
                 temp = response.data.conditions.temp;
                 humid = response.data.conditions.humid;
@@ -60,16 +64,24 @@ var conditionsByBoard = function(board, fromDB, callback){
                         client.end();
                     });
                 }catch(err){
+                    console.error("Failed reading database:");
+                    console.error(err);
                     client.destroy();
                 }
-            }            
+            }else{
+                client.end();
+	        }
+            client.destroy();
         }catch(err){
+            console.error("Data Received Error:");
+            console.log(data);
             console.error(err);
             client.destroy();
         }   
     });
 
     client.on('close', function() {
+        //console.log('Client Closed');
         //Right now do nothing.
     });   
 }

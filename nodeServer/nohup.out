@@ -1,0 +1,46 @@
+[33m[nodemon] 1.11.0[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching: *.*[39m
+[32m[nodemon] starting `node api.js`[39m
+events.js:160
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: EBADF: bad file descriptor, read
+events.js:160
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE :::3000
+    at Object.exports._errnoException (util.js:1022:11)
+    at exports._exceptionWithHostPort (util.js:1045:20)
+    at Server._listen2 (net.js:1262:14)
+    at listen (net.js:1298:10)
+    at Server.listen (net.js:1376:9)
+    at Function.listen (/home/pi/Code/gardenShed/nodeServer/node_modules/express/lib/application.js:617:24)
+    at Object.<anonymous> (/home/pi/Code/gardenShed/nodeServer/api.js:32:18)
+    at Module._compile (module.js:571:32)
+    at Object.Module._extensions..js (module.js:580:10)
+    at Module.load (module.js:488:32)
+Started listening on port 3000 - Garden Shed Conditions
+events.js:160
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: connect ENETUNREACH 10.0.1.119:80 - Local (0.0.0.0:0)
+    at Object.exports._errnoException (util.js:1022:11)
+    at exports._exceptionWithHostPort (util.js:1045:20)
+    at connect (net.js:884:16)
+    at net.js:973:9
+    at _combinedTickCallback (internal/process/next_tick.js:67:7)
+    at process._tickCallback (internal/process/next_tick.js:98:9)
+Started listening on port 3000 - Garden Shed Conditions
+Started listening on port 3000 - Garden Shed Conditions
+events.js:160
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: connect EHOSTUNREACH 10.0.1.119:80
+    at Object.exports._errnoException (util.js:1022:11)
+    at exports._exceptionWithHostPort (util.js:1045:20)
+    at TCPConnectWrap.afterConnect [as oncomplete] (net.js:1090:14)

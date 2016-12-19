@@ -63,7 +63,7 @@ var boards = function getBoards(callback){
             if(err)
                 throw err;
 
-            sqlConn.query('SELECT * FROM tBoards', function(err, rows, fields){
+            sqlConn.query('SELECT * FROM tBoards WHERE isActive = 1', function(err, rows, fields){
                 if(err)
                     throw err;
 
@@ -84,22 +84,29 @@ var boards = function getBoards(callback){
 
 var getBoard = function getBoard(boardId, callback){
     var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    //console.log(boardId);
     try{        
         sqlConn.connect(function(err){
             if(err)
                 throw err;
 
-            sqlConn.query('SELECT * FROM tBoards where BoardID = ?', {boardId}, function(err, rows, fields){
+            sqlConn.query('SELECT * FROM tBoards WHERE BoardID = ?', [boardId], function(err, rows, fields){
                 if(err)
                     throw err;
+                //console.log(rows);
                 sqlConn.end();
-                callback(new board(rows[0].BoardID, rows[0].ChipID, rows[0].Description, rows[0].Created, rows[0].Updated, rows[0].Hostname, rows[0].Port));
+                if(rows.length > 0){
+                    callback(new board(rows[0].BoardID, rows[0].ChipID, rows[0].Description, rows[0].Created, rows[0].Updated, rows[0].Hostname, rows[0].Port));
+                }else{
+                    throw new Error("Board Not Found!");
+                }
             });
         });
         return;
     }catch(err){
         console.error(err);
         sqlConn.destroy();
+        callback(null);
     }    
 }
 
