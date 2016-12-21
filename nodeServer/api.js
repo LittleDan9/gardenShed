@@ -52,6 +52,11 @@ app.get('/DateString', function(req, resp){
 	}
 });
 
+app.get('/DateTimeNow', function(req, resp){
+	var Now = new Date();
+	resp.send('{"date":"' + dtHelper.dateString(Now) + '", "time":"' + dtHelper.timeString(Now) + '"}');
+}
+
 app.get('/Conditions/:boardId', function (req, resp) {
 	try{	
 		var boardId = req.params.boardId;
