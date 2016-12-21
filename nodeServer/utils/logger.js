@@ -3,14 +3,19 @@ var connInfo = require('../configs/mysqlConfig.js')
 var sensorBoards = require('../models/sensorBoards.js')
 
 var logConditions = function (callback){
-    sensorBoards.boards(function(boards){ 
-        //console.log(boards);
-        for(i = 0, len = boards.length; i < len; i++ ){  
-            logConditionsForBaord(boards[i], function(result){
-                callback(result);
-            });
-        }
-    });
+    try{
+        sensorBoards.boards(function(boards){ 
+            //console.log(boards);
+            for(i = 0, len = boards.length; i < len; i++ ){  
+                logConditionsForBaord(boards[i], function(result){
+                    callback(result);
+                });
+            }
+        });
+    }catch(err){
+        console.error("Log Conditions Failure");
+        console.error(err);
+    }
 }
 
 var logConditionsForBaord = function (board, callback){

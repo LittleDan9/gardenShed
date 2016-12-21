@@ -7,7 +7,7 @@ function getShedConditions(){
             rotateGlyph = setInterval(function(){$('#btnRefreshGlyph').rotate()}, 100)
         },
         method: 'GET',
-        url: '/Conditions/1',
+        url: '/Conditions/2',
         dataType: 'JSON',
         success: function(data){
             if(!data || data.status < 0){
@@ -27,13 +27,18 @@ function getShedConditions(){
 
                     var oneDay = 1000*60*60*24;
                     var diff = now_ms - oDate_ms;
+                    //console.log("MS Diff: " + diff);
                     var days = Math.round(diff/oneDay);
+                    //console.log("Days: " + days);
                     var hours = Math.floor((diff/(oneDay/24)))-(days*24);
+                    //console.log("Hourse: " + hours);
                     var mins = Math.floor((diff/(oneDay/24/60))) - ((hours*60) + (days*24*60));
+                    //console.log("Minutes: " + mins);
                     var lstUpd = $('<p id="lstUpd"/>').html('<strong>Last Updated: ' + 
                                                            (days > 0 ? days.toString() + ' Days ' : '') + 
-                                                           (hours > 0 ? (hours == 1 ? hours.toString() + ' Hour ' : hours.toString() + ' Hours ') : ' and ') + 
-                                                           (mins > 0  && isNaN(mins) ? + (mins == 1 ? mins.toString() + ' Minute' : mins.toString() + ' Minutes') : '') + ' Ago!</strong>')
+                                                           (hours > 0 ? (hours == 1 ? hours.toString() + ' Hour ' : hours.toString() + ' Hours ') : ' and ') +
+                                                           (mins > 0  && isNaN(mins) ? + (mins == 1 ? mins.toString() + ' Minute' : mins.toString() + ' Minutes') : '') + ' Ago!</strong>') +
+                                                           (mins > 0 ? (mins == 1 ? (mins.toString() + ' Minute') : (mins.toString() + ' Minutes')) : ('')) + ' Ago!</strong>';
                     $('#observationTime').after(lstUpd);
                     $(lstUpd ).effect("highlight", {}, 8000);
 
