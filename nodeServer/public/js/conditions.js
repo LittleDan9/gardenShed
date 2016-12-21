@@ -33,7 +33,7 @@ function getShedConditions(){
                     var lstUpd = $('<p id="lstUpd"/>').html('<strong>Last Updated: ' + 
                                                            (days > 0 ? days.toString() + ' Days ' : '') + 
                                                            (hours > 0 ? (hours == 1 ? hours.toString() + ' Hour ' : hours.toString() + ' Hours ') : ' and ') + 
-                                                           (mins > 0 ? + (mins == 1 ? mins.toString() + ' Minute' : mins.toString() + ' Minutes') : '') + ' Ago!</strong>')
+                                                           (mins > 0  && isNaN(mins) ? + (mins == 1 ? mins.toString() + ' Minute' : mins.toString() + ' Minutes') : '') + ' Ago!</strong>')
                     $('#observationTime').after(lstUpd);
                     $(lstUpd ).effect("highlight", {}, 8000);
 
