@@ -7,10 +7,10 @@
  * Comment: There may be a more benefical way "business" apprach to this that actually secures the password.
 /*************************************************************************************************************/
 const gardenShed = {
-    host    : '[host]',
-    user    : '[username]',        
-    password: '[password]',
-    database: '[schema]'
+    host    : 'localhost',
+    user    : 'pi',        
+    password: 'df6g87df',
+    database: 'gardenShed'
 }
 
 module.exports = {

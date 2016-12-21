@@ -65,6 +65,12 @@
                 </div>
             </div>
         </div>
+
+        <!--<div style="background-color:black; height:200px; padding:30px;">
+            <i style="font-size:100pt; background-color:black" class="icon wi wi-thermometer"></i>
+            <i style="font-size:100pt; background-color:black; margin-left:100px;" class="icon wi wi-humidity"></i>
+        </div>-->
+
     </body>
 </html>
 <script type="text/javascript">
@@ -84,7 +90,7 @@ $(function(){
     getShedConditions();
     //Uncomment to show Outside Conditions on load.
     //getExtConditions();
-    setInterval(function(){getShedConditions();}, 60000 )
+    //setInterval(function(){getShedConditions();}, 60000 )
 });
 
 $(window).on("resize", function(){resizeHeader();});
