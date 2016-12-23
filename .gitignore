@@ -49,3 +49,4 @@ jspm_packages
 #sensitive files
 mysqlConfig.js
 nohup.out
+WiFiConfig.h
