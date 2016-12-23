@@ -7,7 +7,6 @@ var currentDateTimeString = function(){
 
 var dateTimeString = function dateTimeStringFromDate(d){
     if(d instanceof Date){
-        var hour = d.getHours();
         var dtString =  dateString(d) + ' at ' + timeString(d);
         return dtString;
     }else{
@@ -16,14 +15,17 @@ var dateTimeString = function dateTimeStringFromDate(d){
 }
 
 var dateString = function dateStringFromDate(d){
-    var dString = monthd[d.getMonth()] + ' ' + d.getDate().toString() + ', '  + d.getFullYear().toString();
+    var dString = months[d.getMonth()] + ' ' + d.getDate().toString();
     return dString;
 }
 
 var timeString = function timeStringFromDate(d){
+    var hour = d.getHours();
+    var mins = d.getMinutes();
     var tString = (hour == 0 ? '12' : (hour > 12 ? (hour-12) : hour).toString()) + ':' + 
-                  (d.getMinutes() < 10 ? '0' + d.getMinutes().toString() : d.getMinutes().toString()) + ' ' + 
+                  (mins < 10 ? '0' + mins.toString() : mins.toString()) + ' ' + 
                   (hour > 12 ? 'PM' : 'AM');
+    return tString;
 }
 
 module.exports = {
