@@ -17,34 +17,65 @@
                         <div class="panel-heading text-center jumbotron">
                             <h1 style="display:inline; vertical-align:middle;" class="heading">
                                 <div class="row">
-                                <div id="iconsLeft" class="col-sm-4 col-md-3">
-                                    <span class="glyphicon glyphicon-flash" style=""></span>
-                                    <span class="glyphicon glyphicon-cloud" style=""></span>
-                                </div>
-                                <div id="title" class="col-sm-4 col-md-6">
-                                    <span>Garden Shed Conditions</span>
-                                </div>
-                                <div id="iconsRight" class="col-sm-4 col-md-3">
-                                    <span class="glyphicon glyphicon-cloud" style=""></span>    
-                                    <span class="glyphicon glyphicon-flash" style=""></span>
-                                </div>
+                                    <div id="iconsLeft" class="col-sm-4 col-md-3">
+                                        <span class="glyphicon glyphicon-flash"></span>
+                                        <span class="glyphicon glyphicon-cloud"></span>
+                                    </div>
+                                    <div id="title" class="col-sm-4 col-md-6">
+                                        <span>Garden Shed Conditions</span>
+                                    </div>
+                                    <div id="iconsRight" class="col-sm-4 col-md-3">
+                                        <span class="glyphicon glyphicon-cloud"></span>    
+                                        <span class="glyphicon glyphicon-flash"></span>
+                                    </div>
                                 </div>
                             </h1>
                         </div>
                         <div class="panel-body content">
                             <div class="row">
-                                <div class="col-sm-offset-1 col-sm-6">
+                                <div class="col-sm-offset-1 col-sm-12 col-md-5">
                                     <div id="inside">
                                         <h1>Shed Conditions <button class="btn btn-default" id="btnRefreshShed"><span style="display:inline-block;" id="btnRefreshGlyph" class="glyphicon glyphicon-refresh"></span></button></h1>
                                         <div id="obsTimeDiv" style="font-size:14pt;">Observed on: <span id="observationTime"></span></div>
                                         <h2><i class="icon wi wi-thermometer"></i><span>&nbsp;Temperature:&nbsp;<span id="temp"></span></span></h2>
                                         <h2><i class="icon wi wi-humidity"></i><span>&nbsp;Humidity:&nbsp;<span id="humid"></span></span></h2>
                                     </div>
-                                    <hr>
                                 </div>
-                                <!--<div id="loading" class="col-sm-4 hidden">
-                                    <img src="/images/radio.gif"/>
-                                </div>                                -->
+                                <div class="form-group col-sm-12 col-md-5">
+                                    <div class="panel panel-info">
+                                        <div class="panel-heading text-center">
+                                            <h2>Configure Notifications</h2>
+                                        </div>
+                                        <div class="panel-body">
+                                            <form class="form-horizontal">
+                                                 Currently Sending Alerts to:
+                                                <ul>    
+                                                    <li>Chloe@ThatDogPlace.com</li>
+                                                    <li>Memphis@KittyKorners.co.uk</li>
+                                                    <li>Minch@jediu.edu</li>
+                                                </ul>
+                                                <div class="form-group">
+                                                    <label for="txtLowTemp" class="col-sm-4 control-label">Warn if Temps go below: </label>
+                                                    <div class="col-sm-3">
+                                                        <div class="input-group">
+                                                            <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="-##" pattern="^-?[0-9]\d*?$" required="true" id="txtLowTemp" />
+                                                            <div class="input-group-addon">&deg;F</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="txtHighTemp" class="col-sm-4 control-label">Warn if Temps go above: </label>
+                                                    <div class="col-sm-3">
+                                                        <div class="input-group">
+                                                            <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="###" pattern="^-?[0-9]\d*?$" required="true" id="txtHighTemp" />
+                                                            <div class="input-group-addon">&deg;F</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>                                
+                                </div>
                             </div>
                             <div class="row">
                                 <div class="col-sm-offset-1 col-sm-10">
@@ -65,14 +96,11 @@
                 </div>
             </div>
         </div>
-
-        <!--<div style="background-color:black; height:200px; padding:30px;">
-            <i style="font-size:100pt; background-color:black" class="icon wi wi-thermometer"></i>
-            <i style="font-size:100pt; background-color:black; margin-left:100px;" class="icon wi wi-humidity"></i>
-        </div>-->
-
     </body>
 </html>
+
+
+
 <script type="text/javascript">
 
 jQuery.fn.rotate = function() {
@@ -90,7 +118,7 @@ $(function(){
     getShedConditions();
     //Uncomment to show Outside Conditions on load.
     //getExtConditions();
-    //setInterval(function(){getShedConditions();}, 60000 )
+    setInterval(function(){getShedConditions();}, 60000 )
 });
 
 $(window).on("resize", function(){resizeHeader();});
