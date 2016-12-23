@@ -9,6 +9,8 @@
   #include "Adafruit_ILI9341.h"
   #include "GfxUi.h"
   #include "WebResource.h"
+  #include <ArduinoJson.h>  
+  #include <XPT2046_Touchscreen.h>
   #ifdef ESP8266
   extern "C" {
   #include "user_interface.h"
@@ -18,7 +20,14 @@
   /*Fonts                                                */
   /*******************************************************/  
   #include "Liberation_Sqns_16.h"
-  #include "URWGothiLDegree_30.h"
+  #include "URWGothicLDegree_30.h"
+  #include "URWGothicLDegree_20.h"
+  #include "Digital7_40.h"
+  #include "Digital7_14.h"
+  /*******************************************************/
+  /*Configuration                                        */
+  /*******************************************************/
+  #include "WiFiConfig.h"
   /*******************************************************/
   /*System Constans                                      */
   /*******************************************************/
@@ -35,6 +44,11 @@
   Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
   GfxUi ui = GfxUi(&tft);
   /*******************************************************/
+  /*XPT2046 Touch Settings                               */
+  /*******************************************************/
+  //#define CS_PIN D8
+  //XPT2046_Touchscreen ts(CS_PIN);
+  /*******************************************************/
   /*DHT Sensor                                           */
   /*******************************************************/
   #define DHTPIN  D3
@@ -43,9 +57,9 @@
   /*******************************************************/
   /*WiFI                                                 */
   /*******************************************************/
-  const char* ssid = "TimeCapsule";
-  const char* password = "df6g87df";
-  const char* localHostname = "GardenShedConditions";
+  const char* ssid = SSID;
+  const char* password = WIFI_PASS;
+  const char* localHostname = HOSTNAME;
   /*******************************************************/
   /*TCP Server                                           */
   /*******************************************************/
@@ -59,8 +73,10 @@
   /*Program Control                                      */
   /*******************************************************/
   unsigned long previousMillis = 0;
-  //Refresh the screen every 30 seconds.
-  const long interval = 10000;
+  unsigned long prevTFTMillis = 0;
+  //Refresh the screen every 15 seconds.
+  const long interval = 15000;
+  const long tftOff = 4000;
   /*******************************************************/
   /*Layout Heplper                                       */
   /*******************************************************/
@@ -76,17 +92,72 @@
   float currentTemp = 0.00;
   float currentHumid = 0.00;
   /*******************************************************/
+  /*Layout Helper - Clock                                */
+  /*******************************************************/ 
+  bool isClock = true;
+  bool is7Segment = false;
+  bool showDate = false;
+  bool reprintHourHand = false;
+  bool reprintMinHand = false;
+  float xCenter = (SCREEN_WIDTH/2.0);
+  float yCenter = (SCREEN_HEIGHT/2.0)-25;
+  int timeFontHeight = 30;
+  int radius = ((SCREEN_HEIGHT-(timeFontHeight*3))/2);
+  int curMin = -1;
+  int curHour = -1;
+  String curStrDate = "NA";
+  struct point {
+    float x;
+    float y;
+  }; typedef point Point; 
+   
+  struct datetime {
+    String strDate;
+    String strTime;
+    int hours = -1;
+    int hours12 = hours > 12 ? hours - 12 : hours;
+    int minutes;
+    int seconds;
+    int day;
+    int month;
+    int year;
+    String meridian = hours > 12 ? "PM" : "AM";
+    Point curHourHand;
+    Point curMinHand;
+    Point curSecHand;
+  }; typedef struct datetime DateTime;
+  
+  DateTime gDateTime;
+ 
+  
+  /*******************************************************/
   /*Function Prototypes                                  */
   /*******************************************************/
+  //Network & TCP Server
   void setupWiFi();
   void checkTCP();
-  void printConditions();
+  
+  //Application Setup & Control
   void drawProgress(uint8_t percentage, String text);
   void setupScreenBoot();
-  void setupScreenConditions();  
+  void eraseScreen(); 
   void downloadResources(uint8_t percentage);  
   void downloadCallback(String filename, int16_t bytesDownloaded, int16_t bytesTotal);
   ProgressCallback _downloadCallback = downloadCallback;
+  
+  //Conditions 
+  void printConditions();
+  void setupScreenConditions();
+  
+  //Clock
+  bool getDateTime();
+  void drawHour(int hours, int minutes);
+  void drawMinute(int minutes, int seconds);
+  void drawSecond(int seconds);
+  void drawClockFace();
+  void setupScreenClock ();
+  void eraseHand(Point point);
+  void printDateTime(DateTime *dateTime);  
   /*******************************************************/
   /*Init Routine                                         */
   /*******************************************************/ 
@@ -104,6 +175,7 @@
     //Initialize the DHT Sensor Object and TFT Object
     dht.begin();
     tft.begin();
+    //ts.begin();
     
     //Prepare the interface for use.    
     setupScreenBoot();
@@ -128,9 +200,9 @@
     
     MDNS.addService("JSON", "tcp", localTcpPort);
     //We will need to uncomment the next three lines to erase the file system and redownload.
-    //bootInterval = 100 / (totalBootEvents+1)
-    //drawProgress(bootProgress += bootInterval, "Formatting File System");
-    //SPIFFS.format();
+//    bootInterval = 100 / (totalBootEvents+1);
+//    drawProgress(bootProgress += bootInterval, "Formatting File System");
+//    SPIFFS.format();
 
     //Download necessary external resources.
     drawProgress(bootProgress += bootInterval, "Downloading Resources");
@@ -141,26 +213,53 @@
     drawProgress(bootProgress += bootInterval, "Completed");
     yield();
 
-    //Prepare the screen layout for conditions
-    setupScreenConditions();  
-    //Prime the conditions.
-    printConditions();  
+    eraseScreen();
+    previousMillis = millis();
+    if(isClock && getDateTime()){
+        setupScreenClock();
+    }else{
+      //Prepare the screen layout for conditions      
+      setupScreenConditions();  
+      //Prime the conditions.
+      printConditions();  
+    }
   }
-  
   /*******************************************************/
   /*Loop Routine                                         */
   /*******************************************************/ 
-  void loop(void) {    
+  void loop(void) {
+    getDateTime();
+    
     //Always check for a TCP request
-    yield();
     checkTCP();
-    yield(); 
-    //Build a timmered loop to print the conditions.
+    yield();
+    
     unsigned long currentMillis = millis();    
     if(currentMillis - previousMillis >= interval){
       previousMillis = currentMillis;
+      isClock = !isClock;
+      if(isClock && getDateTime()){
+        eraseScreen();
+        setupScreenClock();
+      }else{
+        //Set this here becuase we might have gooten here becuase the getDateTime() function is down.
+        //Also if clock was down, we don't need to full refresh the screen.
+        if(isClock){
+          isClock = false;
+        }else{
+          eraseScreen();
+        }          
+        setupScreenConditions();
+        printConditions();
+      }
+    }
+    
+    if(isClock){
+      printDateTime(gDateTime);
+    }else{
       printConditions();
     }
+    yield();
   }
 
   /*******************************************************/
@@ -181,7 +280,171 @@
     } 
     if(DEBUG){Serial.println("");Serial.println("Connected: " + String(WiFi.localIP()));}   
   }
+  
+  void printDateTime(DateTime dateTime){
+    if(is7Segment){
+      if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
+        tft.setFont(&URWGothicLDegree30pt8b );
+        curHour = gDateTime.hours12;
+        curMin = gDateTime.minutes;
+        String h = gDateTime.hours12   > 9 ? String(gDateTime.hours12)   : "0" + String(gDateTime.hours12);
+        String m = gDateTime.minutes > 9 ? String(gDateTime.minutes) : "0" + String(gDateTime.minutes);
+        String result = h + ":" + m + " " + gDateTime.meridian;
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+20, result);
+      }
 
+      if(!gDateTime.strDate.equals(curStrDate) && showDate){
+        curStrDate = gDateTime.strDate;
+        tft.setFont(&digital_714pt8b );
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-10, gDateTime.strDate);
+      }
+    }else{
+      if(!gDateTime.strDate.equals(curStrDate) && showDate){
+        curStrDate = dateTime.strDate;
+        tft.fillRect(0,0, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
+        ui.drawString(SCREEN_WIDTH/2, timeFontHeight+10, dateTime.strDate);      
+      }
+  
+      if(dateTime.hours12 != curHour || dateTime.minutes != curMin){
+        tft.fillRect(0, SCREEN_HEIGHT-timeFontHeight, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-15, dateTime.strTime);  
+      }
+      
+      if(dateTime.hours12 != curHour){
+        curHour = dateTime.hours12;
+        drawHour(dateTime.hours, dateTime.minutes);
+      }
+  
+      if(dateTime.minutes != curMin){
+        curMin = dateTime.minutes;
+        drawMinute(dateTime.minutes, dateTime.seconds);
+      }
+  
+      //This got a little crazy
+      drawSecond(dateTime.seconds);
+      
+      tft.fillCircle(xCenter, yCenter, 4, GFX_ORANGE);
+    }
+  }
+  /*******************************************************/
+  /* Get Current Local time from remote server           */
+  /*******************************************************/
+  bool getDateTime(){      
+    WiFiClient timeClient;
+    String JSON = "";
+    
+    if(!timeClient.connect("littlerichele.com", 3000)){
+      Serial.println("Unable to access time server");
+      return false;
+    }
+  
+    timeClient.print(String("GET ") + "/DateTimeNow" + " HTTP/1.1\r\n" +
+               "Host: littlerichele.com\r\n" +
+               "Connection: close\r\n" +
+               "\r\n"
+              );
+    while (timeClient.connected()){
+      if(timeClient.available()){
+        String line = timeClient.readStringUntil('\n');
+        if(line.startsWith("{")){
+          JSON = line;
+          timeClient.flush();
+          break;
+        }
+      }
+    }
+    timeClient.stop();
+      
+    if(JSON.length() <= 0){
+      Serial.println("Unable to read time data");
+      return false;
+    }
+
+    //Prase the JSON and display the time on the clock
+    StaticJsonBuffer<300> jsonBuffer;
+    JsonObject& root = jsonBuffer.parseObject(JSON);
+    if(!root.success()){ 
+      Serial.println("Uable to extract time data");
+      return false;
+    }
+
+    gDateTime.strDate   = root["date"].asString();
+    gDateTime.strTime   = root["time"].asString();
+    gDateTime.hours     = root["hr"];
+    gDateTime.hours12   = gDateTime.hours > 12 ? gDateTime.hours - 12 : root["hr"];
+    gDateTime.meridian  = gDateTime.hours > 12 ? "PM" : "AM";
+    gDateTime.minutes   = root["min"];
+    gDateTime.seconds   = root["sec"];
+    gDateTime.month     = root["month"];
+    gDateTime.month++;  
+    gDateTime.day       = root["day"];
+    gDateTime.year      = root["year"];    
+    return true;
+  }
+  
+  /*******************************************************/
+  /*Helpers for drawing / erasing the hands on the clock */
+  /*******************************************************/  
+  void drawHour(int hours, int minutes){
+    //Draw Hour Hand - 30° per hour 0.5° per minute.
+    float hFraction = (float)(3.0/5.0);
+    float hRads = (((hours * 30.0) + (float)(minutes * 0.5))*71)/4068.0;
+    float xHour = xCenter + radius * sin(hRads);
+    float yHour = yCenter - radius * cos(hRads);
+    xHour = (xCenter + (hFraction * (xHour - xCenter)));
+    yHour = (yCenter + (hFraction * (yHour - yCenter)));
+    eraseHand(gDateTime.curHourHand);    
+    tft.drawLine(xCenter, yCenter, xHour, yHour, GFX_ORANGE);
+    gDateTime.curHourHand = {xHour, yHour};
+  }
+
+  void drawMinute(int minutes, int seconds){
+    //Draw Minute Hand - 6° per Mins
+    float mFraction = (float)(5.0/6.0);
+    float mRads = (float)((minutes * 6.0) * 71.0)/4068.0;
+    float xMin = xCenter + radius * sin(mRads);
+    float yMin = yCenter - radius * cos(mRads);
+    xMin = (xCenter + (mFraction * (xMin - xCenter)));
+    yMin = (yCenter + (mFraction * (yMin - yCenter)));
+    eraseHand(gDateTime.curMinHand);
+    drawHour(gDateTime.hours, gDateTime.minutes);
+    tft.drawLine(xCenter, yCenter, xMin, yMin, ILI9341_CYAN);  
+    gDateTime.curMinHand = {xMin, yMin};
+  }
+
+  void drawSecond(int seconds){
+    //Draw Second Hand
+    float sRads = (float)((seconds * 6.0) * 71.0)/4068.0;
+    float xSec = xCenter + radius * sin(sRads);
+    float ySec = yCenter - radius * cos(sRads);
+    eraseHand(gDateTime.curSecHand);
+
+
+    float dxc = gDateTime.curMinHand.x - xCenter;
+    float dyc = gDateTime.curMinHand.y - yCenter;
+
+    float dxl = xSec - xCenter;
+    float dyl = ySec - yCenter;
+
+    if(dxc * dyl - dyc * dxl == 0){
+      drawMinute(gDateTime.minutes, gDateTime.seconds); 
+    }
+
+    dxc = gDateTime.curHourHand.x - xCenter;
+    dyc = gDateTime.curHourHand.y - yCenter;
+        
+    if(dxc * dyl - dyc * dxl == 0){
+     drawHour(gDateTime.hours, gDateTime.minutes);     
+    }
+    tft.drawLine(xCenter, yCenter, xSec, ySec, ILI9341_RED);  
+    gDateTime.curSecHand = {xSec, ySec};
+  }
+
+  void eraseHand(Point point){
+    tft.drawLine(xCenter, yCenter, point.x, point.y, ILI9341_BLACK);
+    drawClockFace();
+  }
+  
   /*******************************************************/
   /*Check for a TCP request & attempt to respond         */
   /*******************************************************/ 
@@ -253,19 +516,31 @@
     ui.drawProgressBar(10, 120, 300, 15, percentage, ILI9341_WHITE, ILI9341_BLUE);
     yield();
   }
-
-  //Prepare the screen for boot.
-  void setupScreenBoot(){
+  
+  /*******************************************************/
+  /*Erase the screen. Broke out for expabsion */
+  /*******************************************************/
+  void eraseScreen(){
     tft.fillScreen(ILI9341_BLACK);
+  }
+  
+  /*******************************************************/
+  /*Prepare the screen for boot sequence                 */
+  /*******************************************************/
+  void setupScreenBoot(){
+    eraseScreen();
     tft.setFont(&Liberation_Sans_16);
     tft.setRotation(3);
     tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
     //tft.setTextSize(2);
   }
 
-  //Prepare the TFT for displaying the conditions.
-  void setupScreenConditions(){
-    
+  /*******************************************************/
+  /* Prepare the screen for displaying the condition     */
+  /*******************************************************/
+  void setupScreenConditions(){    
+    currentTemp = -99;
+    currentHumid = -99;
     tft.setFont(&URWGothicLDegree30pt8b );
     ui.setTextAlignment(LEFT);
     tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
@@ -287,6 +562,49 @@
     imageWidth = 53;    
     xOffSet = ((iconBoxWidth/2) - (imageWidth/2)) + iconOffset;
     ui.drawBmp("humidity.bmp", xOffSet, ((SCREEN_HEIGHT/4)*3)-(imageHeight/2)); //53x67
+  }
+
+  /*******************************************************/
+  /* Prepare the screen for displaying the Date/Time     */
+  /*******************************************************/
+  void setupScreenClock(){
+    curStrDate = "NA";
+    curHour = -1;
+    curMin = -1;
+    ui.setTextAlignment(CENTER);
+    
+    if(is7Segment){
+      tft.setFont(&digital_740pt8b );
+      tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
+    }else{
+      tft.setFont(&URWGothicLDegree30pt8b );
+      tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+      drawClockFace();          
+    }
+  }
+
+  void drawClockFace(){
+    //Draw the clock perimiter.
+    tft.drawCircle(xCenter, yCenter, radius, GFX_ORANGE);
+
+    //Draw the hour dashes
+    for(int i = 0; i < 12; i++){
+        float theta = i*2*M_PI/12;
+        float xOuter = xCenter + radius * sin(theta);
+        float yOuter = yCenter - radius * cos(theta);
+        float fraction = 1.0;
+
+        //Make 0/12, 3, 6, 9 longer dashed
+        if(i % 3 == 0){
+          fraction = (float)(1.0/4.0);
+        }else{
+          fraction = (float)(1.0/6.0);
+        }
+        
+        float xEnd = (xOuter + (fraction * (xCenter-xOuter)));
+        float yEnd = (yOuter + (fraction * (yCenter-yOuter)));
+        tft.drawLine(xOuter, yOuter, xEnd, yEnd, GFX_ORANGE);  
+    }
   }
 
   //Callback function to report download progress.
@@ -311,6 +629,6 @@
       //sprintf(id, "%02d", i);
       //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
       webResource.downloadFile("http://littlerichele.com:3000/images/humidity-mini-crop.bmp", "humidity.bmp", _downloadCallback);
-    }
+    }   
   }
   
