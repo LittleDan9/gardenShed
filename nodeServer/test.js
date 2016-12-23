@@ -1,8 +1,10 @@
-var sensorBoards = require('./sensorBoards.js')
-sensorBoards.boards(function(boards){
-    for(i = 0, len = boards.length; i < len; i++ ){
-        boards[i].getConditions(function(conditions){
-            console.log(conditions);
-        });
+
+var notification = require('./models/notification.js');
+notification.getNotifications(function(data){
+    if(data.length > 0)
+    {
+        data[0].send("Test", "Test", true, function(response){
+            console.log(response);
+        })
     }
 });
