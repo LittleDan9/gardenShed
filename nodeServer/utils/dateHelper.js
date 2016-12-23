@@ -15,7 +15,7 @@ var dateTimeString = function dateTimeStringFromDate(d){
 }
 
 var dateString = function dateStringFromDate(d){
-    var dString = months[d.getMonth()] + ' ' + d.getDate().toString() + ', '  + d.getFullYear().toString();
+    var dString = months[d.getMonth()] + ' ' + d.getDate().toString();
     return dString;
 }
 
