@@ -24,6 +24,13 @@
   #include "URWGothicLDegree_20.h"
   #include "Digital7_40.h"
   #include "Digital7_14.h"
+<<<<<<< HEAD
+=======
+  /*******************************************************/
+  /*Configuration                                        */
+  /*******************************************************/
+  #include "WiFiConfig.h"
+>>>>>>> 12eaa29c7b3103f1ca2ff644f911dedb713daf9a
   /*******************************************************/
   /*System Constans                                      */
   /*******************************************************/
@@ -53,9 +60,9 @@
   /*******************************************************/
   /*WiFI                                                 */
   /*******************************************************/
-  const char* ssid = "TimeCapsule";
-  const char* password = "df6g87df";
-  const char* localHostname = "GardenShedConditions";
+  const char* ssid = SSID;
+  const char* password = WIFI_PASS;
+  const char* localHostname = HOSTNAME;
   /*******************************************************/
   /*TCP Server                                           */
   /*******************************************************/

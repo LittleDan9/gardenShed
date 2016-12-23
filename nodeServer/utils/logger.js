@@ -1,6 +1,7 @@
 var mysql = require('mysql');
 var connInfo = require('../configs/mysqlConfig.js')
-var sensorBoards = require('../models/sensorBoards.js')
+var sensorBoards = require('../models/sensorBoard.js')
+var monitor = require('../utils/monitor.js')
 
 var logConditions = function (callback){
     try{
@@ -21,6 +22,8 @@ var logConditions = function (callback){
 var logConditionsForBaord = function (board, callback){
     var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
     board.getConditions(false, function(conditions){
+        //console.log("Excuting Monitor");
+        monitor.compareTemperature(conditions);
         sqlConn.query('INSERT INTO tConditions SET ?', { BoardID: board.boardId, Temperature: conditions.temp, Humidity: conditions.humidity, Status: conditions.status}, function(err, result){
             if(err)
                 throw err;
