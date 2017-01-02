@@ -1,20 +1,29 @@
+  /********************************************************
+  * gardenShed.ino
+  * Description: Main runtime script for the garden shed 
+  *              conditions/time module.
+  * Author:  Daniel R. Little
+  * Company: Little Squared, Inc.
+  * Created: 12/03/2016
+  ********************************************************/
+   
   /*******************************************************/
   /*Includes                                             */
   /*******************************************************/
-  #include <ESP8266WiFi.h>
-  #include <ESP8266mDNS.h>  
-  #include <DHT.h>  
+  #include "ESP8266WiFi.h"
+  #include "ESP8266mDNS.h"
+  #include "DHT.h"
   #include "SPI.h"
   #include "Adafruit_GFX.h"
   #include "Adafruit_ILI9341.h"
   #include "GfxUi.h"
   #include "WebResource.h"
-  #include <ArduinoJson.h>  
-  #include <XPT2046_Touchscreen.h>
+  #include "ArduinoJson.h"
+  #include "XPT2046_Touchscreen.h"
   #ifdef ESP8266
-  extern "C" {
-  #include "user_interface.h"
-  }
+    extern "C" {
+    #include "user_interface.h"
+    }
   #endif  
   /*******************************************************/
   /*Fonts                                                */
@@ -55,12 +64,6 @@
   #define DHTTYPE DHT22
   DHT dht(DHTPIN, DHTTYPE);
   /*******************************************************/
-  /*WiFI                                                 */
-  /*******************************************************/
-  const char* ssid = SSID;
-  const char* password = WIFI_PASS;
-  const char* localHostname = HOSTNAME;
-  /*******************************************************/
   /*TCP Server                                           */
   /*******************************************************/
   unsigned int localTcpPort = 4210;
@@ -77,6 +80,7 @@
   //Refresh the screen every 15 seconds.
   const long interval = 15000;
   const long tftOff = 4000;
+  bool isConnected = false;
   /*******************************************************/
   /*Layout Heplper                                       */
   /*******************************************************/
@@ -91,10 +95,15 @@
   int halfFontHeight = fontHeight/2;  
   float currentTemp = 0.00;
   float currentHumid = 0.00;
+  bool isNotification = false;
+  String txtNotify = "";
   /*******************************************************/
   /*Layout Helper - Clock                                */
   /*******************************************************/ 
-  bool isClock = true;
+  #define MAX_FAIL_COUNT 10
+  int lastAccessMillis = 0;
+  int failCount = 0;
+  bool isClock = false;
   bool is7Segment = false;
   bool showDate = false;
   bool reprintHourHand = false;
@@ -110,7 +119,7 @@
     float x;
     float y;
   }; typedef point Point; 
-   
+  
   struct datetime {
     String strDate;
     String strTime;
@@ -134,10 +143,11 @@
   /*Function Prototypes                                  */
   /*******************************************************/
   //Network & TCP Server
-  void setupWiFi();
+  void setupWiFi(bool forceWait);
   void checkTCP();
-  
+    
   //Application Setup & Control
+  void printNotification();
   void drawProgress(uint8_t percentage, String text);
   void setupScreenBoot();
   void eraseScreen(); 
@@ -155,7 +165,7 @@
   void drawMinute(int minutes, int seconds);
   void drawSecond(int seconds);
   void drawClockFace();
-  void setupScreenClock ();
+  void setupScreenClock();
   void eraseHand(Point point);
   void printDateTime(DateTime *dateTime);  
   /*******************************************************/
@@ -182,11 +192,11 @@
       
     //Connect to WiFi
     drawProgress(bootProgress, "Connecting to WiFi");
-    setupWiFi();
+    setupWiFi(true);
 
     //Setup DNS
     drawProgress(bootProgress += bootInterval, "Starting mDNS Server");
-    if (!MDNS.begin(localHostname)) {
+    if (!MDNS.begin(HOSTNAME)) {
       if(DEBUG){Serial.println("Error setting up MDNS responder!");}
       while(1) { 
         delay(1000);
@@ -199,10 +209,11 @@
     server.begin();
     
     MDNS.addService("JSON", "tcp", localTcpPort);
+    
     //We will need to uncomment the next three lines to erase the file system and redownload.
-//    bootInterval = 100 / (totalBootEvents+1);
-//    drawProgress(bootProgress += bootInterval, "Formatting File System");
-//    SPIFFS.format();
+    //bootInterval = 100 / (totalBootEvents+1);
+    //drawProgress(bootProgress += bootInterval, "Formatting File System");
+    //SPIFFS.format();
 
     //Download necessary external resources.
     drawProgress(bootProgress += bootInterval, "Downloading Resources");
@@ -211,50 +222,63 @@
 
     //Nmotify the user we are complete.
     drawProgress(bootProgress += bootInterval, "Completed");
-    yield();
 
-    eraseScreen();
     previousMillis = millis();
-    if(isClock && getDateTime()){
-        setupScreenClock();
-    }else{
-      //Prepare the screen layout for conditions      
-      setupScreenConditions();  
-      //Prime the conditions.
-      printConditions();  
-    }
+    //We will always start with condition. Being that this is the primary purpose.
+    eraseScreen();
+    setupScreenConditions();  
+    printConditions();
+    yield();  
   }
   /*******************************************************/
   /*Loop Routine                                         */
   /*******************************************************/ 
   void loop(void) {
-    getDateTime();
-    
-    //Always check for a TCP request
-    checkTCP();
+    if(WiFi.status() != WL_CONNECTED){
+      //We are not connected to the WiFi - Attempt to connect
+      setupWiFi(false);
+      //Check WiFi Status Again
+      if(WiFi.status() == WL_CONNECTED){
+        isConnected = true;
+        isNotification = true;
+        txtNotify = "WiFi Connected";
+      }else{
+        isNotification = true;
+        txtNotify = "WiFi Disconnected";
+      }
+    }else{
+      if(isClock){
+        getDateTime();
+      }
+      isConnected = true;
+    }
+
+    if(isConnected){
+      checkTCP();
+      yield();
+            
+      unsigned long currentMillis = millis();    
+      if(currentMillis - previousMillis >= interval){
+        previousMillis = currentMillis;
+        if(!isClock && getDateTime()){
+          eraseScreen();
+          setupScreenClock();
+          isClock = true;
+        }else{
+          if(isClock){ // We need to setup the screen for conditions only if perviously clock was enabled.
+            isClock = false;
+            eraseScreen();
+            setupScreenConditions();
+          }
+        }
+      }//end milli check    
+    }else{//end if(isConnected)
+      isClock = false;
+    }
     yield();
     
-    unsigned long currentMillis = millis();    
-    if(currentMillis - previousMillis >= interval){
-      previousMillis = currentMillis;
-      isClock = !isClock;
-      if(isClock && getDateTime()){
-        eraseScreen();
-        setupScreenClock();
-      }else{
-        //Set this here becuase we might have gooten here becuase the getDateTime() function is down.
-        //Also if clock was down, we don't need to full refresh the screen.
-        if(isClock){
-          isClock = false;
-        }else{
-          eraseScreen();
-        }          
-        setupScreenConditions();
-        printConditions();
-      }
-    }
     
-    if(isClock){
+    if(isClock){      
       printDateTime(gDateTime);
     }else{
       printConditions();
@@ -263,86 +287,88 @@
   }
 
   /*******************************************************/
-  /*Enable and Connection to WiF                         */
+  /*Enable and Connection to WiFi                        */
   /*******************************************************/ 
-  void setupWiFi(){
+  void setupWiFi(bool forceWait){
     if(DEBUG){Serial.println("Setting Up WiFi");}
     //Need to set hostname prior to DHCP connection.
-    
-    WiFi.hostname(localHostname);
-    if(DEBUG){Serial.println("Hostname: " + String(localHostname));}
+    WiFi.disconnect();
+    WiFi.hostname(HOSTNAME);
+    if(DEBUG){Serial.println("Hostname: " + String(HOSTNAME));}
+    int ssidCount = sizeof(SSIDs)/sizeof(SSIDs[0]);
     //Connect to Access Point
-    if(DEBUG){Serial.print("Connecting to " + String(ssid));}
-    WiFi.begin(ssid, password);
-    while(WiFi.status() != WL_CONNECTED){
-      if(DEBUG){Serial.print(".");}
-      delay(500);
-    } 
+    int count = 0;
+    do{  
+      if(DEBUG){Serial.println("Count: " + String(count));}
+      for(int i = 0; i < ssidCount; i++){
+        if(DEBUG){Serial.println("Connecting to '" + String(SSIDs[i]) + "'");}
+        WiFi.begin(SSIDs[i], WIFI_PASS);
+        for(int j = 0; j < 10; j++) {
+          if(DEBUG){Serial.print(".");}
+          delay(500);
+          if(WiFi.status() == WL_CONNECTED){
+            break;
+          }
+        }
+        if(DEBUG){Serial.println("");}
+        if(WiFi.status() != WL_CONNECTED){
+          if(DEBUG){Serial.println("Failed connecting to " + String(SSIDs[i]));}
+        }else{
+          break;
+        }
+      }       
+      if(forceWait){
+        count = 0;
+      }else{
+        count++;    
+      }
+    }while(WiFi.status() != WL_CONNECTED && count < 100);
     if(DEBUG){Serial.println("");Serial.println("Connected: " + String(WiFi.localIP()));}   
   }
   
-  void printDateTime(DateTime dateTime){
-    if(is7Segment){
-      if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
-        tft.setFont(&URWGothicLDegree30pt8b );
-        curHour = gDateTime.hours12;
-        curMin = gDateTime.minutes;
-        String h = gDateTime.hours12   > 9 ? String(gDateTime.hours12)   : "0" + String(gDateTime.hours12);
-        String m = gDateTime.minutes > 9 ? String(gDateTime.minutes) : "0" + String(gDateTime.minutes);
-        String result = h + ":" + m + " " + gDateTime.meridian;
-        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+20, result);
-      }
-
-      if(!gDateTime.strDate.equals(curStrDate) && showDate){
-        curStrDate = gDateTime.strDate;
-        tft.setFont(&digital_714pt8b );
-        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-10, gDateTime.strDate);
-      }
-    }else{
-      if(!gDateTime.strDate.equals(curStrDate) && showDate){
-        curStrDate = dateTime.strDate;
-        tft.fillRect(0,0, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
-        ui.drawString(SCREEN_WIDTH/2, timeFontHeight+10, dateTime.strDate);      
-      }
-  
-      if(dateTime.hours12 != curHour || dateTime.minutes != curMin){
-        tft.fillRect(0, SCREEN_HEIGHT-timeFontHeight, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
-        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-15, dateTime.strTime);  
-      }
-      
-      if(dateTime.hours12 != curHour){
-        curHour = dateTime.hours12;
-        drawHour(dateTime.hours, dateTime.minutes);
-      }
-  
-      if(dateTime.minutes != curMin){
-        curMin = dateTime.minutes;
-        drawMinute(dateTime.minutes, dateTime.seconds);
-      }
-  
-      //This got a little crazy
-      drawSecond(dateTime.seconds);
-      
-      tft.fillCircle(xCenter, yCenter, 4, GFX_ORANGE);
-    }
-  }
   /*******************************************************/
   /* Get Current Local time from remote server           */
   /*******************************************************/
-  bool getDateTime(){      
+  bool getDateTime(){
+    bool isTimeConnected = false;
+    int tMillis = millis();    
     WiFiClient timeClient;
     String JSON = "";
+
+    if(tMillis - lastAccessMillis < 850){
+      //Only hit the time server approx every second.
+      return true;
+    }
+
+    for(int i = 0; i < 10; i++){
+      if(timeClient.connect("littlerichele.com", 80)){
+        isTimeConnected = true;
+        break;
+      }      
+    }
     
-    if(!timeClient.connect("littlerichele.com", 3000)){
+    if(isConnected){
+      failCount = 0;
+    }else{
       Serial.println("Unable to access time server");
+      failCount++;
+      if(failCount > MAX_FAIL_COUNT || !isClock){
+        isNotification = true;
+        txtNotify = "Unable to access time server";
+        failCount = 0;
+      }
       return false;
     }
+        
+    //When did we last get the time?
+    lastAccessMillis = millis();
   
     timeClient.print(String("GET ") + "/DateTimeNow" + " HTTP/1.1\r\n" +
                "Host: littlerichele.com\r\n" +
                "Connection: close\r\n" +
                "\r\n"
               );
+              
     while (timeClient.connected()){
       if(timeClient.available()){
         String line = timeClient.readStringUntil('\n');
@@ -356,7 +382,12 @@
     timeClient.stop();
       
     if(JSON.length() <= 0){
+      //This is not good, but we connected, so there is an issues on the server
+      //or there is a timing issue where we tried to process the response but did not
+      //receive it, meaning the network is acting slow.
       Serial.println("Unable to read time data");
+      //isNotification = true;
+      //txtNotify = "No time data received";
       return false;
     }
 
@@ -364,7 +395,9 @@
     StaticJsonBuffer<300> jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject(JSON);
     if(!root.success()){ 
-      Serial.println("Uable to extract time data");
+      Serial.println("Unable to extract time data");
+      isNotification = true;
+      txtNotify = "Invalid time data";
       return false;
     }
 
@@ -487,6 +520,8 @@
   void printConditions(){
     //Only do a screen refresh when necessary
     float temp = dht.readTemperature(true);
+  
+    
     if(temp != currentTemp){
       currentTemp = temp;
       //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
@@ -502,6 +537,90 @@
       tft.fillRect(textOffset, middleOfBottom - halfFontHeight, textBoxWidth, (fontHeight+2), ILI9341_BLACK);     
       ui.drawString(textOffset, middleOfBottom + halfFontHeight, String(humid) + "%");           
     }
+    printNotification();
+  }
+  /*******************************************************/
+  /*Print Date / Time from remote server                 */
+  /*******************************************************/   
+  void printDateTime(DateTime dateTime){   
+    eraseNotification(); 
+    if(is7Segment){
+      if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
+        tft.setFont(&URWGothicLDegree30pt8b );
+        curHour = gDateTime.hours12;
+        curMin = gDateTime.minutes;
+        String h = gDateTime.hours12   > 9 ? String(gDateTime.hours12)   : "0" + String(gDateTime.hours12);
+        String m = gDateTime.minutes > 9 ? String(gDateTime.minutes) : "0" + String(gDateTime.minutes);
+        String result = h + ":" + m + " " + gDateTime.meridian;
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+20, result);
+      }
+
+      if(!gDateTime.strDate.equals(curStrDate) && showDate){
+        curStrDate = gDateTime.strDate;
+        tft.setFont(&digital_714pt8b );
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-10, gDateTime.strDate);
+      }
+    }else{
+      if(!gDateTime.strDate.equals(curStrDate) && showDate){
+        curStrDate = dateTime.strDate;
+        tft.fillRect(0,0, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
+        ui.drawString(SCREEN_WIDTH/2, timeFontHeight+10, dateTime.strDate);      
+      }
+  
+      if(dateTime.hours12 != curHour || dateTime.minutes != curMin){
+        tft.fillRect(0, SCREEN_HEIGHT-timeFontHeight, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-15, dateTime.strTime);  
+      }
+      
+      if(dateTime.hours12 != curHour){
+        curHour = dateTime.hours12;
+        drawHour(dateTime.hours, dateTime.minutes);
+      }
+  
+      if(dateTime.minutes != curMin){
+        curMin = dateTime.minutes;
+        drawMinute(dateTime.minutes, dateTime.seconds);
+      }
+  
+      //This got a little crazy
+      drawSecond(dateTime.seconds);
+      
+      tft.fillCircle(xCenter, yCenter, 4, GFX_ORANGE);
+    }
+    printNotification();
+  }
+  
+  /*******************************************************/
+  /*Print Notifications if any exists                    */
+  /*******************************************************/  
+  void printNotification(){
+    if(isNotification){
+        tft.setFont(&Liberation_Sans_16);
+        ui.setTextAlignment(CENTER);
+      if(isClock) {
+        ui.drawString(SCREEN_WIDTH/2, 12, txtNotify);
+        ui.setTextAlignment(CENTER);
+        tft.setFont(&URWGothicLDegree30pt8b);
+      }else{
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+6, txtNotify);
+        //Restore Layout
+        ui.setTextAlignment(LEFT);
+        tft.setFont(&URWGothicLDegree30pt8b );                 
+      }        
+      isNotification = false;
+      txtNotify = "";
+    }
+  }
+
+  void eraseNotification(){
+    int nFontHeight = 20;
+    if(isClock) {
+      tft.fillRect(0, 0, SCREEN_WIDTH, nFontHeight, ILI9341_BLACK);
+    }else{
+      //ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+6, txtNotify);
+      tft.fillRect(0, 0, SCREEN_WIDTH, nFontHeight, ILI9341_BLACK);
+      tft.drawLine(20, (SCREEN_HEIGHT/2), (SCREEN_WIDTH-20), (SCREEN_HEIGHT/2), GFX_ORANGE);
+    }        
   }
   
   /*******************************************************/
@@ -521,6 +640,8 @@
   /*Erase the screen. Broke out for expabsion */
   /*******************************************************/
   void eraseScreen(){
+    txtNotify = "";
+    isNotification = false;
     tft.fillScreen(ILI9341_BLACK);
   }
   
@@ -582,7 +703,10 @@
       drawClockFace();          
     }
   }
-
+  
+  /*******************************************************/
+  /* Draw the face of a clock on the screen              */
+  /*******************************************************/
   void drawClockFace(){
     //Draw the clock perimiter.
     tft.drawCircle(xCenter, yCenter, radius, GFX_ORANGE);
@@ -607,7 +731,23 @@
     }
   }
 
-  //Callback function to report download progress.
+  /*******************************************************/
+  /* Web Resources Download / Callback Function          */
+  /*******************************************************/  
+  void downloadResources(uint8_t percentage) {
+    char id[5];
+    for (int i = 0; i < 21; i++) {
+      //sprintf(id, "%02d", i);
+      //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
+      webResource.downloadFile("http://littlerichele.com/images/temperature-mini-crop.bmp", "temperature.bmp", _downloadCallback);
+    }
+    for (int i = 0; i < 21; i++) {
+      //sprintf(id, "%02d", i);
+      //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
+      webResource.downloadFile("http://littlerichele.com/images/humidity-mini-crop.bmp", "humidity.bmp", _downloadCallback);
+    }   
+  }
+
   void downloadCallback(String filename, int16_t bytesDownloaded, int16_t bytesTotal) {
     Serial.println(String(bytesDownloaded) + " / " + String(bytesTotal));
   
@@ -615,20 +755,5 @@
     if (percentage % 5 == 0) {
       ui.drawProgressBar(10, 140, 300, 15, percentage, ILI9341_WHITE, ILI9341_GREEN);
     }
-  }
-
-  //If the bitmaps don't exist, we need to pull them from the web.
-  void downloadResources(uint8_t percentage) {
-    char id[5];
-    for (int i = 0; i < 21; i++) {
-      //sprintf(id, "%02d", i);
-      //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
-      webResource.downloadFile("http://littlerichele.com:3000/images/temperature-mini-crop.bmp", "temperature.bmp", _downloadCallback);
-    }
-    for (int i = 0; i < 21; i++) {
-      //sprintf(id, "%02d", i);
-      //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
-      webResource.downloadFile("http://littlerichele.com:3000/images/humidity-mini-crop.bmp", "humidity.bmp", _downloadCallback);
-    }   
   }
   
