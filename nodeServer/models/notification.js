@@ -1,6 +1,9 @@
 var mysql = require('mysql');
 var connInfo = require('../configs/mysqlConfig.js');
+<<<<<<< HEAD
 var notifyConfig = require('../configs/notificationConfig.js');
+=======
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
 var user = require('./user.js');
 var nodemailer = require('nodemailer');
 
@@ -59,9 +62,12 @@ notification.prototype.save = function(callback){
 }
 
 notification.prototype.send = function(txtMessage, htmlMessage, forceSend, callback){
+<<<<<<< HEAD
     if(!this.isActive){
         callback("Cannot send alerts from a an inactive notification.");
     }
+=======
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
     var lastSentDate = new Date(this.lastSent);
     var now = new Date();
     var hourInMili = (60 * 60 * 1000);
@@ -81,10 +87,25 @@ notification.prototype.send = function(txtMessage, htmlMessage, forceSend, callb
     var notificationId = this.notificationId
     //Get Users who get notifications.
     user.getUsers(function(users){
+<<<<<<< HEAD
         var transporter = nodemailer.createTransport(notifyConfig.smtp);
 
         var mailOptions = {
             from : "Garden Shed <" + notifyConfig.fromEmail + ">",
+=======
+        var transporter = nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            auth: {
+                user: 'gardenshed@littlerichele.com',
+                pass: 'qwwvvifkqjgptckq'
+            }        
+        });
+
+        var mailOptions = {
+            from : "Garden Shed <gardenshed@littlerichele.com>",
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
             to : "",
             subject : "Garden Shed Alert",
             text : txtMessage,
@@ -153,7 +174,11 @@ var getNotification = function(notificationId, callback){
             if(err)
                 throw err;
 
+<<<<<<< HEAD
             sqlConn.query('SELECT * FROM tNotifications WHERE NotificationID = ?', [NotificationId], function(err, rows, fields){
+=======
+            sqlConn.query('SELECT * FROM tNotifications WHERE NotificationID = ? WHERE isActive = 1', [NotificationId], function(err, rows, fields){
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                 if(err)
                     throw err;
                 //console.log(rows);
@@ -162,10 +187,17 @@ var getNotification = function(notificationId, callback){
                     callback(new notification(rows[0].NotificationId, 
                                               rows[0].CompareValue, 
                                               rows[0].Created, 
+<<<<<<< HEAD
                                               rows[0].isGreaterThan[0],
                                               rows[0].isLessThan[0],
                                               rows[0].isEqualTo[0],
                                               rows[0].isActive[0],
+=======
+                                              rows[0].isGreaterThan,
+                                              rows[0].isLessThan,
+                                              rows[0].isEqualTo,
+                                              rows[0].isActive,
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                                               rows[0].LastSent));
                 }else{
                     callback(null);
@@ -188,12 +220,17 @@ var getNotifications = function getNotificiations(callback){
             if(err)
                 throw err;
 
+<<<<<<< HEAD
             sqlConn.query('SELECT * FROM tNotifications', function(err, rows, fields){
+=======
+            sqlConn.query('SELECT * FROM tNotifications WHERE isActive = 1', function(err, rows, fields){
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                 if(err)
                     throw err;
 
                 var notifications = new Array();
                 for(i=0, len = rows.length; i < len; i++){
+<<<<<<< HEAD
                     notifications.push(new notification(rows[i].NotificationID, 
                                               rows[i].CompareValue, 
                                               rows[i].Created, 
@@ -202,6 +239,16 @@ var getNotifications = function getNotificiations(callback){
                                               rows[i].isEqualTo[0],
                                               rows[i].isActive[0],
                                               rows[i].LastSent));
+=======
+                    notifications.push(new notification(rows[0].NotificationID, 
+                                              rows[0].CompareValue, 
+                                              rows[0].Created, 
+                                              rows[0].isGreaterThan[0],
+                                              rows[0].isLessThan[0],
+                                              rows[0].isEqualTo[0],
+                                              rows[0].isActive[0],
+                                              rows[0].LastSent));
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                 }
                 //console.log(notifications);
                 callback(notifications);
