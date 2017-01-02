@@ -65,7 +65,12 @@ if(cluster.isMaster){
 					//console.log('Started Logging');
 =======
 <<<<<<< HEAD
+<<<<<<< HEAD
 					//console.log('Started Logging');
+=======
+					console.log('Started Logging');
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
+>>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
 =======
 					console.log('Started Logging');
 >>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
@@ -124,20 +129,27 @@ if(cluster.isMaster){
 	}); 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	app.get('/notifications', function (resp, resp){		
 =======
 <<<<<<< HEAD
+=======
+>>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
 	app.get('/notifications', function (resp, resp){
 =======
 	app.get('/notification/get', function (resp, resp){
 >>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
 		
+<<<<<<< HEAD
+>>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
+=======
 >>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
 		notifications.getNotifications(function(result){
 			resp.send(result);
 		});
 	});
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 	app.get('/notifications/delete/:notificationId', function (req, resp){		
 		notifications.del(req.params.notificationId);
@@ -146,6 +158,8 @@ if(cluster.isMaster){
 	app.post('/notfications/add/', function(req,resp){
 =======
 <<<<<<< HEAD
+=======
+>>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
 	app.get('/notifications/delete/:notificationId', function (req, resp){
 =======
 	app.get('/notification/delete/:notificationId', function (req, resp){
@@ -159,6 +173,9 @@ if(cluster.isMaster){
 =======
 	app.post('/notfication/add/', function(req,resp){
 >>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
+<<<<<<< HEAD
+>>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
+=======
 >>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
 		console.log(req.body.compareValue);
 		console.log(req.body.isGreaterThan);
@@ -166,8 +183,11 @@ if(cluster.isMaster){
 		console.log(req.body.isEqualTo);
 	});
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 <<<<<<< HEAD
+>>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
+=======
 >>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
 
 	app.get('/users', function(req, resp){
@@ -176,6 +196,11 @@ if(cluster.isMaster){
 		});
 	});
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
+>>>>>>> aec309f56e86ab858a19942d0d0913ab2661248d
 =======
 =======
 >>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
