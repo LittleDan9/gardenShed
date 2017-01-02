@@ -30,11 +30,7 @@ var getUsers = function(callback){
 
                 var users = new Array();
                 for(i=0, len = rows.length; i < len; i++){
-<<<<<<< HEAD
                     users.push(new user(rows[i].UserID, rows[i].Name, rows[i].EMail, rows[i].CellPhone, rows[i].SMSAddress, rows[i].SendAlerts[0], rows[i].isActive[0]));
-=======
-                    users.push(new user(rows[i].UserID, rows[i].Name, rows[i].EMail, rows[i].CellPhone, rows[i].SMSAddress, rows[i].SendAlerts, rows[i].isActive));
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                 }
                 callback(users);
                 sqlConn.end();

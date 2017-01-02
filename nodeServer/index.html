@@ -44,16 +44,11 @@
                                 <div class="form-group col-sm-12 col-md-5">
                                     <div class="panel panel-info">
                                         <div class="panel-heading text-center">
-<<<<<<< HEAD
                                             <h2>Add Notifications</h2>
-=======
-                                            <h2>Configure Notifications</h2>
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                                         </div>
                                         <div class="panel-body">
                                             <form class="form-horizontal">
                                                  Currently Sending Alerts to:
-<<<<<<< HEAD
                                                 <ul id="liUsers">    
                                                     <!--<li>Chloe@ThatDogPlace.com</li>
                                                     <li>Memphis@KittyKorners.co.uk</li>
@@ -62,16 +57,6 @@
                                                 <div class="form-group">
                                                     <label for="txtLowTemp" class="col-sm-7 control-label">Warn if Temps go below: </label>
                                                     <div class="col-sm-5">
-=======
-                                                <ul>    
-                                                    <li>Chloe@ThatDogPlace.com</li>
-                                                    <li>Memphis@KittyKorners.co.uk</li>
-                                                    <li>Minch@jediu.edu</li>
-                                                </ul>
-                                                <div class="form-group">
-                                                    <label for="txtLowTemp" class="col-sm-4 control-label">Warn if Temps go below: </label>
-                                                    <div class="col-sm-3">
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                                                         <div class="input-group">
                                                             <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="-##" pattern="^-?[0-9]\d*?$" required="true" id="txtLowTemp" />
                                                             <div class="input-group-addon">&deg;F</div>
@@ -79,13 +64,8 @@
                                                     </div>
                                                 </div>
                                                 <div class="form-group">
-<<<<<<< HEAD
                                                     <label for="txtHighTemp" class="col-sm-7 control-label">Warn if Temps go above: </label>
                                                     <div class="col-sm-5">
-=======
-                                                    <label for="txtHighTemp" class="col-sm-4 control-label">Warn if Temps go above: </label>
-                                                    <div class="col-sm-3">
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                                                         <div class="input-group">
                                                             <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="###" pattern="^-?[0-9]\d*?$" required="true" id="txtHighTemp" />
                                                             <div class="input-group-addon">&deg;F</div>
@@ -96,7 +76,6 @@
                                         </div>
                                     </div>                                
                                 </div>
-<<<<<<< HEAD
                             </div>
                             <div class="row">
                                 <div class="col-sm-offset-1 col-sm-10">
@@ -108,9 +87,8 @@
                                         </div>
                                     </div>                                
                                 </div>
-=======
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
                             </div>
+                            <!--
                             <div class="row">
                                 <div class="col-sm-offset-1 col-sm-10">
                                     <div class="panel panel-info hidden" id="inactivePanel">
@@ -122,6 +100,7 @@
                                     </div>                                
                                 </div>
                             </div>                            
+                            -->
                             <div class="row">
                                 <div class="col-sm-offset-1 col-sm-10">
                                     <button class="btn btn-default" id="showExtConditions">Show Outside Conditions</button>
@@ -273,7 +252,7 @@ $('#btnRefreshExt').on('click', function(){getExtConditions()});
 
                 var $li = $('<li/>').html(data[i].name);
                 $li.append($('<ul />'));
-console.log($li.children('ul'));
+                console.log($li.children('ul'));
                 if(data[i].eMail.length > 0){
                     $li.children('ul').append($('<li/>').html(data[i].eMail));
                 }
