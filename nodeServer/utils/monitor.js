@@ -13,11 +13,17 @@ var compareTemperature = function(conditions){
         for(i = 0; i < notifications.length; i++){
             var send = false;
             var notification = notifications[i];
-            if(notification.isGreaterThan &&  conditions.temp > notification.compareValue){
+            //console.log("Temp: " + conditions.temp + " Compare To: " + notification.compareValue);
+            if(!notification.isActive){
+                continue;
+            }else if(notification.isGreaterThan &&  conditions.temp > notification.compareValue){
+                //console.log("isGreaterThan");
                 send = true;
             }else if(notification.isLessThan && conditions.temp < notification.compareValue){
+                //console.log("isLessThan");
                 send = true;
-            }else if(notification.isEqualTo && conditions.temperature == notification.temp){
+            }else if(notification.isEqualTo && conditions.temp == notification.compareValue){
+                //console.log("isEqual");
                 send = true;
             }
             //console.log('Send: ' + send);

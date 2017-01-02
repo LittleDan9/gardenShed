@@ -31,8 +31,9 @@ if(cluster.isMaster){
 	var app = express();
 
 	//Local Scripts
-	var sensorBoards = require('./models/sensorBoard.js')
-	var notifications = require('./models/notification.js')
+	var sensorBoards = require('./models/sensorBoard.js');
+	var notifications = require('./models/notification.js');
+	var user = require('./models/user.js');
 	var dtHelper = require('./utils/dateHelper.js');
 	var logger = require('./utils/logger.js');
 
@@ -60,7 +61,7 @@ if(cluster.isMaster){
 			}
 			setInterval(function(){
 				try{
-					console.log('Started Logging');
+					//console.log('Started Logging');
 					logger.logConditions(function(result){
 						try{
 							//console.log(result);
@@ -114,22 +115,28 @@ if(cluster.isMaster){
 		}
 	}); 
 
-	app.get('/notification/get', function (resp, resp){
+	app.get('/notifications', function (resp, resp){
 		
 		notifications.getNotifications(function(result){
 			resp.send(result);
 		});
 	});
 
-	app.get('/notification/delete/:notificationId', function (req, resp){
+	app.get('/notifications/delete/:notificationId', function (req, resp){
 		
 		notifications.del(req.params.notificationId);
 	})
 
-	app.post('/notfication/add/', function(req,resp){
+	app.post('/notfications/add/', function(req,resp){
 		console.log(req.body.compareValue);
 		console.log(req.body.isGreaterThan);
 		console.log(req.body.isLessThan);
 		console.log(req.body.isEqualTo);
+	});
+
+	app.get('/users', function(req, resp){
+		user.getUsers(function(results){
+			resp.send(results);
+		});
 	});
 }

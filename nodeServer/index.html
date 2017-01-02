@@ -44,19 +44,19 @@
                                 <div class="form-group col-sm-12 col-md-5">
                                     <div class="panel panel-info">
                                         <div class="panel-heading text-center">
-                                            <h2>Configure Notifications</h2>
+                                            <h2>Add Notifications</h2>
                                         </div>
                                         <div class="panel-body">
                                             <form class="form-horizontal">
                                                  Currently Sending Alerts to:
-                                                <ul>    
-                                                    <li>Chloe@ThatDogPlace.com</li>
+                                                <ul id="liUsers">    
+                                                    <!--<li>Chloe@ThatDogPlace.com</li>
                                                     <li>Memphis@KittyKorners.co.uk</li>
-                                                    <li>Minch@jediu.edu</li>
+                                                    <li>Minch@jediu.edu</li>-->
                                                 </ul>
                                                 <div class="form-group">
-                                                    <label for="txtLowTemp" class="col-sm-4 control-label">Warn if Temps go below: </label>
-                                                    <div class="col-sm-3">
+                                                    <label for="txtLowTemp" class="col-sm-7 control-label">Warn if Temps go below: </label>
+                                                    <div class="col-sm-5">
                                                         <div class="input-group">
                                                             <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="-##" pattern="^-?[0-9]\d*?$" required="true" id="txtLowTemp" />
                                                             <div class="input-group-addon">&deg;F</div>
@@ -64,8 +64,8 @@
                                                     </div>
                                                 </div>
                                                 <div class="form-group">
-                                                    <label for="txtHighTemp" class="col-sm-4 control-label">Warn if Temps go above: </label>
-                                                    <div class="col-sm-3">
+                                                    <label for="txtHighTemp" class="col-sm-7 control-label">Warn if Temps go above: </label>
+                                                    <div class="col-sm-5">
                                                         <div class="input-group">
                                                             <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="###" pattern="^-?[0-9]\d*?$" required="true" id="txtHighTemp" />
                                                             <div class="input-group-addon">&deg;F</div>
@@ -77,6 +77,28 @@
                                     </div>                                
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-sm-offset-1 col-sm-10">
+                                    <div class="panel panel-info hidden" id="activePanel">
+                                        <div class="panel-heading">
+                                            Active Notifications
+                                        </div>
+                                        <div class="panel-body" id="activePanelBody">
+                                        </div>
+                                    </div>                                
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-offset-1 col-sm-10">
+                                    <div class="panel panel-info hidden" id="inactivePanel">
+                                        <div class="panel-heading">
+                                            Inactive Notifications
+                                        </div>
+                                        <div class="panel-body" id="inactivePanelBody">                                     
+                                        </div>
+                                    </div>                                
+                                </div>
+                            </div>                            
                             <div class="row">
                                 <div class="col-sm-offset-1 col-sm-10">
                                     <button class="btn btn-default" id="showExtConditions">Show Outside Conditions</button>
@@ -142,4 +164,103 @@ $('#showExtConditions').on('click', function(){
 
 })
 $('#btnRefreshExt').on('click', function(){getExtConditions()});
+
+ $.ajax({
+        method: 'GET',
+        url: '/notifications',
+        dataType: 'JSON',
+        success: function(data){
+            if(data == undefined){
+                return;
+            }   
+            var isActive = false;
+            var isInactive = false;
+            var activeContainer = $('<div/>').attr('id', 'activeAlerts');
+            var inactiveContainer = $('<div/>').attr('id', 'inactiveAlerts');
+            for(i = 0; i < data.length; i++){
+                var prefix = "";
+                var $alertContainer = null;
+                if(data[i].isActive) {
+                    isActive = true;
+                    $alertContainer = activeContainer;
+                    prefix = 'active';
+                }else{
+                    isInactive = true;
+                    $alertContainer = inactiveContainer;
+                    prefix = 'inactive';
+                }
+
+                var logic = '';
+                if(data[i].isGreaterThan){
+                    logic += 'greater than';
+                }else if(data[i].isLessThan){
+                    logic += 'less than';
+                }
+
+                if(data[i].isEqualTo)
+                {
+                    if(logic.length > 0)
+                        logic += ' ';
+                    logic += 'equal to'
+                }
+
+                var $remove = $('<span/>').addClass('glyphicon').addClass('glyphicon-remove').data('notificationId', i.toString()).css('cursor', 'hand').css('color', 'red');
+                $remove.on('click', function(){
+                    console.log('Delete ' + $(this).data('notificationId'));
+                });
+
+                var $alertDiv = $('<div/>').html("&nbsp;Send alert when temperature is ");
+                $alertDiv.prepend($remove);
+
+                //Add Remove Button
+                $alertDiv.append($('<span/>').attr('id', 'activeCompare' + i.toString()).html('<strong>' + logic + "</strong>&nbsp;"));
+                $alertDiv.append($('<span/>').attr('id', 'activeValue' + i.toString()).html('<strong>' + data[i].compareValue + '°F</strong>'));
+                $alertContainer.append($alertDiv);
+                //Add Create Button
+            }
+            if(isActive){
+                $('#activePanelBody').append(activeContainer)
+                $('#activePanel').removeClass('hidden');
+            }else{
+                $('#activePanelBody').addClass('hidden');
+            }
+
+
+            if(false && isInactive){
+                $('#inactivePanelBody').append(inactiveContainer)
+                    $('#inactivePanel').removeClass('hidden');
+            }else{
+                $('#inactivePanelBody').addClass('hidden');
+            }            
+        }
+ });
+
+  $.ajax({
+        method: 'GET',
+        url: '/users',
+        dataType: 'JSON',
+        success: function(data){
+            if(data == undefined){
+                return;
+            }   
+            for(i = 0; i < data.length; i++){
+                if(!data[i].sendAlerts | !data[i].isActive){
+                    continue;
+                }
+
+                var $li = $('<li/>').html(data[i].name);
+                $li.append($('<ul />'));
+console.log($li.children('ul'));
+                if(data[i].eMail.length > 0){
+                    $li.children('ul').append($('<li/>').html(data[i].eMail));
+                }
+
+                if(data[i].smsAddress.length > 0){
+                    $li.children('ul').append($('<li/>').html(data[i].cellPhone + '@' + data[i].smsAddress));
+                }
+                $('#liUsers').append($li);
+
+            }
+        }
+  });
 </script>
