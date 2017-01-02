@@ -31,14 +31,9 @@ if(cluster.isMaster){
 	var app = express();
 
 	//Local Scripts
-<<<<<<< HEAD
 	var sensorBoards = require('./models/sensorBoard.js');
 	var notifications = require('./models/notification.js');
 	var user = require('./models/user.js');
-=======
-	var sensorBoards = require('./models/sensorBoard.js')
-	var notifications = require('./models/notification.js')
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
 	var dtHelper = require('./utils/dateHelper.js');
 	var logger = require('./utils/logger.js');
 
