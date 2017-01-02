@@ -4,7 +4,9 @@
  * Author: Daniel R. Little
  * Company: Little Squared, Inc.
  * Date: 12/11/2016
-/*************************************************************************************************************/
+/*************************************************************************************************************
+ * Setup Forking in the event of a kill from a non-handled error
+ **********************************************************************/
 var cluster = require('cluster');
 if(cluster.isMaster){
 	// for(i = 0; i < 4; i++){
@@ -17,7 +19,7 @@ if(cluster.isMaster){
 		cluster.fork();
 	});
 }else{
-	//Check to make sure the mySQL config files was updated.
+	//Check to make sure the mySQL config file was updated.
 	var sqlConfig = require('./configs/mysqlConfig.js');
 	if(sqlConfig.gardenShedConn.host == "[host]"){
 		console.error("You must configure your mysql connection. ./configs/mysqlConfig.js");
@@ -25,6 +27,17 @@ if(cluster.isMaster){
 	}
 	sqlConfig = null;
 
+	//Check to make sure the Notification config file was updated.
+	var notifyConfig = require('./configs/notificationConfig.js');
+	if(notifyConfig.smtp.host == "SMTP_HOST"){
+		console.error("You must configure your notification connection. ./configs/notificationConfig.js");
+		return;
+	}
+	notifyConfig = null;
+
+/***********************************************************************
+ * Required Libraries
+ **********************************************************************/
 	var express = require('express');
 	var bodyParser = require('body-parser');
 	var http = require('http');
@@ -32,7 +45,9 @@ if(cluster.isMaster){
 	var app = express();
 	
 
-	//Local Scripts
+/***********************************************************************
+ * Local Scripts
+ **********************************************************************/
 	var sensorBoards = require('./models/sensorBoard.js');
 	var notifications = require('./models/notification.js');
 	var user = require('./models/user.js');
@@ -45,6 +60,9 @@ if(cluster.isMaster){
 	//app.use(bodyParser.json());
 	var urlencodedParser = bodyParser.urlencoded({ extended: false })
 
+/***********************************************************************
+ * Default Listener
+ **********************************************************************/
 	var server = app.listen(3000, function(){
 		try{
 			console.log('Started listening on port 3000 - Garden Shed Conditions');
@@ -83,7 +101,9 @@ if(cluster.isMaster){
 			console.error(err);
 		}
 	});
-
+/***********************************************************************
+ * Date/Time Routes
+ **********************************************************************/
 	app.get('/DateString', function(req, resp){
 		var dtSig = req.query.dt;
 		if(!dtSig)
@@ -105,7 +125,9 @@ if(cluster.isMaster){
 		', "year":"' + Now.getFullYear() + '"' +
 		'}');
 	});
-
+/***********************************************************************
+ * Shed Condition Route
+ **********************************************************************/
 	app.get('/Conditions/:boardId', function (req, resp) {
 		try{	
 			var boardId = req.params.boardId;
@@ -119,11 +141,32 @@ if(cluster.isMaster){
 		}
 	}); 
 
+/***********************************************************************
+ * Notification Routes
+ **********************************************************************/
 	app.get('/notifications', function (resp, resp){
 		notifications.getNotifications(function(result){
 			resp.send(result);
 		});
 	});
+
+	app.get('/notifications/active', function (resp, resp){
+		notifications.getNotifications(function(result){
+			var activeNotifications = result.filter(function(item){
+            	 return(item.isActive == true);
+			});
+			resp.send(activeNotifications);
+		});
+	});
+
+	app.get('/notifications/inactive', function (resp, resp){
+		notifications.getNotifications(function(result){
+			var activeNotifications = result.filter(function(item){
+            	 return(item.isActive == false);
+			});
+			resp.send(activeNotifications);
+		});
+	});	
 
 	app.get('/notifications/delete/:notificationId', function (req, resp){		
 		notifications.delete(req.params.notificationId, function(response){
@@ -148,6 +191,9 @@ if(cluster.isMaster){
 		});
 	});
 
+/***********************************************************************
+ * User Routes
+ **********************************************************************/
 	app.get('/users', function(req, resp){
 		user.getUsers(function(results){
 			resp.send(results);

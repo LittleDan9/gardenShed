@@ -193,18 +193,40 @@
     function getNotifications(){
         $.ajax({
             method: 'GET',
-            url: '/notifications',
+            url: '/notifications/active',
             dataType: 'JSON',
             success: function(data){
                 if(data == undefined){
                     return;
-                }   
+                }  
+                console.log(data);                
+                var areActive = jQuery.grep(data, function(item){
+                    return(item.isActive == true);
+                });
+
+                // var areInactive = jQuery.grep(data, function(item){
+                //     return(item.isActive == false);
+                // });
+
+                if(areActive.length == 0){
+                    $('#activePanel').addClass('hidden');
+                }else{
+                    $('#activePanel').removeClass('hidden');
+                }
+
+                // if(areActareInactiveive.length == 0){
+                //     $('#inactivePanel').addClass('hidden');
+                // }else{
+                //     $('#inactivePanel').removeClass('hidden');
+                // }                
+
                 var isActive = false;
                 var isInactive = false;
                 $('#activeAlerts').remove();
                 $('#inactiveAlerts').remove();
                 var activeContainer = $('<div/>').attr('id', 'activeAlerts');
                 var inactiveContainer = $('<div/>').attr('id', 'inactiveAlerts');
+
                 for(i = 0; i < data.length; i++){
                     var prefix = "";
                     var $alertContainer = null;
@@ -250,16 +272,16 @@
                     $('#activePanelBody').append(activeContainer)
                     $('#activePanel').removeClass('hidden');
                 }else{
-                    $('#activePanelBody').addClass('hidden');
+                    $('#activePanel').addClass('hidden');
                 }
 
 
-                if(false && isInactive){
-                    $('#inactivePanelBody').append(inactiveContainer)
-                        $('#inactivePanel').removeClass('hidden');
-                }else{
-                    $('#inactivePanelBody').addClass('hidden');
-                }            
+                // if(false && isInactive){
+                //     $('#inactivePanelBody').append(inactiveContainer);
+                //     $('#inactivePanel').removeClass('hidden');
+                // }else{
+                //     $('#inactivePanelBody').addClass('hidden');
+                // }            
             }
         });
     }
