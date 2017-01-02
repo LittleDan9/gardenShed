@@ -48,9 +48,9 @@ function getShedConditions(){
         complete: function(){
             clearInterval(rotateGlyph);
             $('#btnRefreshGlyph').css('color', 'black');
-            $('#btnRefreshGlyph').data('angle', 0);
-            $('#btnRefreshGlyph').rotate();
-            $('#btnRefreshGlyph').data('angle', 0);
+            //$('#btnRefreshGlyph').data('angle', 0);
+            $('#btnRefreshGlyph').finish();
+            //$('#btnRefreshGlyph').data('angle', 0);
         }
     });
 }
