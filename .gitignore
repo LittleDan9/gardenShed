@@ -51,7 +51,4 @@ mysqlConfig.js
 nohup.out
 #WiFiConfig.h
 .gitignore
-<<<<<<< HEAD
 *.jar
-=======
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
