@@ -6,10 +6,12 @@
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
         <script src="https://code.jquery.com/jquery-3.1.1.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8=" crossorigin="anonymous"></script>
         <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" integrity="sha256-VazP97ZCwtekAsvgPBSUwPFKdrwD3unUfSGVYrahUqU=" crossorigin="anonymous"></script>        
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>        
         <script src="/js/weatherIconXref.js"></script>
         <script src="/js/conditions.js"></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     </head>
-    <body style="padding:10px;">
+    <body>
         <div class="container-fluid">
             <div class="row header">
                 <div class="col-sm-offset-0 col-sm-12 col-md-offset-1 col-md-10">
@@ -35,57 +37,65 @@
                             <div class="row">
                                 <div class="col-sm-offset-1 col-sm-12 col-md-5">
                                     <div id="inside">
-                                        <h1>Shed Conditions <button class="btn btn-default" id="btnRefreshShed"><span style="display:inline-block;" id="btnRefreshGlyph" class="glyphicon glyphicon-refresh"></span></button></h1>
+                                        <h1>Conditions <button class="btn btn-default" id="btnRefreshShed"><span style="display:inline-block;" id="btnRefreshGlyph" class="glyphicon glyphicon-refresh"></span></button></h1>
                                         <div id="obsTimeDiv" style="font-size:14pt;">Observed on: <span id="observationTime"></span></div>
-                                        <h2><i class="icon wi wi-thermometer"></i><span>&nbsp;Temperature:&nbsp;<span id="temp"></span></span></h2>
-                                        <h2><i class="icon wi wi-humidity"></i><span>&nbsp;Humidity:&nbsp;<span id="humid"></span></span></h2>
+                                        <h2><i class="icon wi wi-thermometer"></i><span><span class="hidden-xs hidden-sm">&nbsp;Temperature:</span>&nbsp;<span id="temp">Loading...</span></span></h2>
+                                        <h2><i class="icon wi wi-humidity"></i><span><span class="hidden-xs hidden-sm">&nbsp;Humidity:</span>&nbsp;<span id="humid">Loading...</span></span></h2>
                                     </div>
                                 </div>
-                                <div class="form-group col-sm-12 col-md-5">
-                                    <div class="panel panel-info">
-                                        <div class="panel-heading text-center">
-                                            <h2>Add Notifications</h2>
+                                <div class="col-sm-12 col-md-5">
+                           
+                                </div>
+                            </div>
+                            <div class="row" style="margin-top:40px;">
+                                <div class="col-sm-offset-1 col-sm-10">
+                                    <div class="panel panel-info hidden" id="activePanel">
+                                        <div class="panel-heading">
+                                            <h4>Active Notifications</h4>
                                         </div>
-                                        <div class="panel-body">
-                                            <form class="form-horizontal">
-                                                 Currently Sending Alerts to:
-                                                <ul id="liUsers">    
-                                                    <!--<li>Chloe@ThatDogPlace.com</li>
-                                                    <li>Memphis@KittyKorners.co.uk</li>
-                                                    <li>Minch@jediu.edu</li>-->
-                                                </ul>
-                                                <div class="form-group">
-                                                    <label for="txtLowTemp" class="col-sm-7 control-label">Warn if Temps go below: </label>
-                                                    <div class="col-sm-5">
-                                                        <div class="input-group">
-                                                            <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="-##" pattern="^-?[0-9]\d*?$" required="true" id="txtLowTemp" />
-                                                            <div class="input-group-addon">&deg;F</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="txtHighTemp" class="col-sm-7 control-label">Warn if Temps go above: </label>
-                                                    <div class="col-sm-5">
-                                                        <div class="input-group">
-                                                            <input type="text" class="form-control" autocomplete="false" min="-50" max="150" placeholder="###" pattern="^-?[0-9]\d*?$" required="true" id="txtHighTemp" />
-                                                            <div class="input-group-addon">&deg;F</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </form>
+                                        <div class="panel-body" id="activePanelBody">
+                                            <div id="users">
+                                                Currently Sending Alerts to:
+                                                <ul id="liUsers"></ul>
+                                            </div>
                                         </div>
                                     </div>                                
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-sm-offset-1 col-sm-10">
-                                    <div class="panel panel-info hidden" id="activePanel">
+                                    <div class="panel panel-info">
                                         <div class="panel-heading">
-                                            Active Notifications
+                                            <h4>Add Notifications</h4>
+                                        </div>   
+                                        <div class="panel-body">
+                                            <form class="form-horizontal" id="frmNotifyAdd">
+                                                <div class="col-sm-offset-1 col-sm-10">
+                                                    <div class="form-group">
+                                                        <label for="txtTemp" class="control-label">Criteria:</label>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <select name="ddlCriteria" id="ddlCriteria" class="form-control">
+                                                            <option value="-1">Select Criteria</option>
+                                                            <option value=">=">Is Greater Than and Equal To (>=)</option>
+                                                            <option value="<=">Is Less Than and Equal To (<=)</option>                                                            
+                                                            <option value=">">Is Greater Than (>)</option>
+                                                            <option value="<">Is Less Than (<)</option>                                                            
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <div class="input-group">
+                                                            <input type="text" class="form-control" style="text-align:right" autocomplete="false" min="-50" max="150" placeholder="##" pattern="^-?[0-9]\d*?$" required="true" id="txtTemp" name="txtTemp" />
+                                                            <div class="input-group-addon">&deg;F</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <button type="button" id="btnAddNotify" class="btn btn-default">Add Notification</button>
+                                                    </div>
+                                                </div>
+                                            </form>
                                         </div>
-                                        <div class="panel-body" id="activePanelBody">
-                                        </div>
-                                    </div>                                
+                                    </div>                                          
                                 </div>
                             </div>
                             <!--
@@ -107,16 +117,21 @@
                                     <div id="outside" class="hidden">
                                         <h1>Outside Conditions <button class="btn btn-default" id="btnRefreshExt"><span class="glyphicon glyphicon-refresh"></span></button></h1>
                                         <div style="font-size:14pt;">Observed on: <span id="extObservationTime"></span> from station <span id="extStationID"></span></div>
-                                        <h2><i id="extCondIcon" class="icon wi "></i>&nbsp;Currently:&nbsp;<span id="extCondition"></span></h2>
-                                        <h2><i class="icon wi wi-thermometer"></i>&nbsp;Temperature:&nbsp;<span id="extTemp"></span></h2>
-                                        <h2><i class="icon wi wi-humidity"></i>&nbsp;Humidity:&nbsp;<span id="extHumid"></span></h2>
-                                        <h2><i class="icon wi wi-cloudy-gusts"></i>&nbsp;Wind:&nbsp;<span id="extWind"></span></h2>
+                                        <h2><i id="extCondIcon" class="icon wi "></i><span class="hidden-xs hidden-sm">&nbsp;Currently:</span>&nbsp;<span id="extCondition"></span></h2>
+                                        <h2><i class="icon wi wi-thermometer"></i><span class="hidden-xs hidden-sm">&nbsp;Temperature:</span>&nbsp;<span id="extTemp"></span></h2>
+                                        <h2><i class="icon wi wi-humidity"></i><span class="hidden-xs hidden-sm">&nbsp;Humidity:</span>&nbsp;<span id="extHumid"></span></h2>
+                                        <h2><i class="icon wi wi-cloudy-gusts"></i><span class="hidden-xs hidden-sm">&nbsp;Wind:</span>&nbsp;<span id="extWind"></span></h2>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>    
-                    <div id="wuLogo" class="text-right hidden"><strong>Outside Conditions Provided By:&nbsp;&nbsp;</strong><a href="https://www.wunderground.com/?apiref=cd49dbb7619f6522"><img src="/images/wundergroundLogo_4c_horz.png" style="width:140px; margin-top:-12px;" /></a></div>        
+                    <div id="wuLogo" class="text-right hidden">
+                        <strong>Outside Conditions Provided By:&nbsp;&nbsp;</strong>
+                        <a href="https://www.wunderground.com/?apiref=cd49dbb7619f6522">
+                            <img src="/images/wundergroundLogo_4c_horz.png" class="img-responsive" style="max-width:140px; margin-top:-12px; padding:10px;" align="right" />
+                        </a>
+                    </div>        
                 </div>
             </div>
         </div>
@@ -127,142 +142,196 @@
 
 <script type="text/javascript">
 
-jQuery.fn.rotate = function() {
-    degrees = $(this).data("angle");
-    $(this).css({'-webkit-transform' : 'rotate('+ degrees +'deg)',
-                 '-moz-transform' : 'rotate('+ degrees +'deg)',
-                 '-ms-transform' : 'rotate('+ degrees +'deg)',
-                 'transform' : 'rotate('+ degrees +'deg)'});
-    $(this).data("angle", degrees + 5);                 
-};
+    jQuery.fn.rotate = function() {
+        degrees = $(this).data("angle");
+        $(this).css({'-webkit-transform' : 'rotate('+ degrees +'deg)',
+                    '-moz-transform' : 'rotate('+ degrees +'deg)',
+                    '-ms-transform' : 'rotate('+ degrees +'deg)',
+                    'transform' : 'rotate('+ degrees +'deg)'});
+        $(this).data("angle", degrees + 5);                 
+    };
 
-$(function(){
-    $('#btnRefreshGlyph').data("angle", 0);
-    resizeHeader();
-    getShedConditions();
-    //Uncomment to show Outside Conditions on load.
-    //getExtConditions();
-    setInterval(function(){getShedConditions();}, 60000 )
-});
+    $(function(){
+        $('#btnRefreshGlyph').data("angle", 0);
+        resizeHeader();
+        getShedConditions();
+        getNotifications();
+        getUsers();
+        //Uncomment to show Outside Conditions on load.
+        //getExtConditions();
+        setInterval(function(){getShedConditions();}, 60000 )
+        $('[data-toggle="popover"]').popover();
+    });
 
-$(window).on("resize", function(){resizeHeader();});
+    $(window).on("resize", function(){resizeHeader();});
 
-function resizeHeader(){
-    var titleHeight = $('#title').height();
-    $('#iconsLeft,#iconsRight').height(titleHeight).find('span').css('line-height', titleHeight.toString() + 'px');
-}
-
-$('#btnRefreshShed').on('click', function(){getShedConditions()});
-$('#showExtConditions').on('click', function(){
-    if($('#outside').hasClass('hidden')){
-        getExtConditions();
-        $(this).text('Hide Outside Conditions');        
-    } else {
-        $('#outside').addClass('hidden')
-        $('#wuLogo').addClass('hidden');
-        $(this).text('Show Outside Conditions');
-        
+    function resizeHeader(){
+        var titleHeight = $('#title').height();
+        $('#iconsLeft,#iconsRight').height(titleHeight).find('span').css('line-height', titleHeight.toString() + 'px');
     }
 
-})
-$('#btnRefreshExt').on('click', function(){getExtConditions()});
+    $('#btnRefreshShed').on('click', function(){getShedConditions()});
 
- $.ajax({
-        method: 'GET',
-        url: '/notifications',
-        dataType: 'JSON',
-        success: function(data){
-            if(data == undefined){
-                return;
-            }   
-            var isActive = false;
-            var isInactive = false;
-            var activeContainer = $('<div/>').attr('id', 'activeAlerts');
-            var inactiveContainer = $('<div/>').attr('id', 'inactiveAlerts');
-            for(i = 0; i < data.length; i++){
-                var prefix = "";
-                var $alertContainer = null;
-                if(data[i].isActive) {
-                    isActive = true;
-                    $alertContainer = activeContainer;
-                    prefix = 'active';
+    $('#showExtConditions').on('click', function(){
+        if($('#outside').hasClass('hidden')){
+            getExtConditions();
+            $(this).text('Hide Outside Conditions');        
+        } else {
+            $('#outside').addClass('hidden')
+            $('#wuLogo').addClass('hidden');
+            $(this).text('Show Outside Conditions');
+            
+        }
+
+    });
+
+    $('#btnRefreshExt').on('click', function(){
+        getExtConditions()}
+    );
+
+    //Get Notifications
+    function getNotifications(){
+        $.ajax({
+            method: 'GET',
+            url: '/notifications',
+            dataType: 'JSON',
+            success: function(data){
+                if(data == undefined){
+                    return;
+                }   
+                var isActive = false;
+                var isInactive = false;
+                $('#activeAlerts').remove();
+                $('#inactiveAlerts').remove();
+                var activeContainer = $('<div/>').attr('id', 'activeAlerts');
+                var inactiveContainer = $('<div/>').attr('id', 'inactiveAlerts');
+                for(i = 0; i < data.length; i++){
+                    var prefix = "";
+                    var $alertContainer = null;
+                    if(data[i].isActive) {
+                        isActive = true;
+                        $alertContainer = activeContainer;
+                        prefix = 'active';
+                    }else{
+                        isInactive = true;
+                        $alertContainer = inactiveContainer;
+                        prefix = 'inactive';
+                    }
+
+                    var logic = '';
+                    if(data[i].isGreaterThan){
+                        logic += 'greater than';
+                    }else if(data[i].isLessThan){
+                        logic += 'less than';
+                    }
+
+                    if(data[i].isEqualTo)
+                    {
+                        if(logic.length > 0)
+                            logic += ' ';
+                        logic += 'equal to'
+                    }
+                    
+                    var $remove = $('<span/>').addClass('glyphicon').addClass('glyphicon-remove').data('notificationId', data[i].notificationId).css('cursor', 'hand').css('color', 'red');
+                    $remove.on('click', function(){
+                        deleteNotification($(this).data('notificationId'));
+                    });
+
+                    var $alertDiv = $('<div/>').html("&nbsp;Send alert when temperature is ");
+                    $alertDiv.prepend($remove);
+
+                    //Add Remove Button
+                    $alertDiv.append($('<span/>').attr('id', 'activeCompare' + i.toString()).html('<strong>' + logic + "</strong>&nbsp;"));
+                    $alertDiv.append($('<span/>').attr('id', 'activeValue' + i.toString()).html('<strong>' + data[i].compareValue + '°F</strong>'));
+                    $alertContainer.append($alertDiv);
+                    //Add Create Button
+                }
+                if(isActive){                    
+                    $('#activePanelBody').append(activeContainer)
+                    $('#activePanel').removeClass('hidden');
                 }else{
-                    isInactive = true;
-                    $alertContainer = inactiveContainer;
-                    prefix = 'inactive';
+                    $('#activePanelBody').addClass('hidden');
                 }
 
-                var logic = '';
-                if(data[i].isGreaterThan){
-                    logic += 'greater than';
-                }else if(data[i].isLessThan){
-                    logic += 'less than';
-                }
 
-                if(data[i].isEqualTo)
-                {
-                    if(logic.length > 0)
-                        logic += ' ';
-                    logic += 'equal to'
-                }
-
-                var $remove = $('<span/>').addClass('glyphicon').addClass('glyphicon-remove').data('notificationId', i.toString()).css('cursor', 'hand').css('color', 'red');
-                $remove.on('click', function(){
-                    console.log('Delete ' + $(this).data('notificationId'));
-                });
-
-                var $alertDiv = $('<div/>').html("&nbsp;Send alert when temperature is ");
-                $alertDiv.prepend($remove);
-
-                //Add Remove Button
-                $alertDiv.append($('<span/>').attr('id', 'activeCompare' + i.toString()).html('<strong>' + logic + "</strong>&nbsp;"));
-                $alertDiv.append($('<span/>').attr('id', 'activeValue' + i.toString()).html('<strong>' + data[i].compareValue + '°F</strong>'));
-                $alertContainer.append($alertDiv);
-                //Add Create Button
+                if(false && isInactive){
+                    $('#inactivePanelBody').append(inactiveContainer)
+                        $('#inactivePanel').removeClass('hidden');
+                }else{
+                    $('#inactivePanelBody').addClass('hidden');
+                }            
             }
-            if(isActive){
-                $('#activePanelBody').append(activeContainer)
-                $('#activePanel').removeClass('hidden');
-            }else{
-                $('#activePanelBody').addClass('hidden');
+        });
+    }
+
+    function deleteNotification(id){
+        //console.log('Delete: ' + id);
+        $.ajax({
+            method: 'GET',
+            url: '/notifications/delete/' + id,
+            dataType: 'JSON',
+            success: function(response){
+                getNotifications();
+                //console.log(response);
             }
+        })
+    }
 
+    //Get Users
+    function getUsers(){
+        $.ajax({
+            method: 'GET',
+            url: '/users',
+            dataType: 'JSON',
+            success: function(data){
 
-            if(false && isInactive){
-                $('#inactivePanelBody').append(inactiveContainer)
-                    $('#inactivePanel').removeClass('hidden');
-            }else{
-                $('#inactivePanelBody').addClass('hidden');
-            }            
-        }
- });
+                var popOverSettings = { //Save the setting for later use as well
+                    placement: 'auto',
+                    container: 'body',
+                    html: true,
+                    //content:" <div style='color:red'>This is your div content</div>"
+                    content: function () {
+                        return $(this).data(content);
+                    }
 
-  $.ajax({
-        method: 'GET',
-        url: '/users',
-        dataType: 'JSON',
-        success: function(data){
-            if(data == undefined){
-                return;
-            }   
-            for(i = 0; i < data.length; i++){
-                if(!data[i].sendAlerts | !data[i].isActive){
-                    continue;
+                }            
+                if(data == undefined){
+                    return;
+                }   
+                for(i = 0; i < data.length; i++){
+                    if(!data[i].sendAlerts | !data[i].isActive){
+                        continue;
+                    }
+                    var addresses = "";
+                    if(data[i].eMail.length > 0){
+                        addresses += "<p>" + data[i].eMail + "</p>";
+                    }
+
+                    if(data[i].smsAddress.length > 0){
+                        addresses += "<p>" + data[i].cellPhone + '@' + data[i].smsAddress + "</p>";
+                    }
+                    var $li = $('<li/>').html(data[i].name + '<span data-toggle="popover" title="Notify Locations" data-content="' + addresses + '" style="padding:0 10px;" class="glyphicon glyphicon-info-sign"></span>');
+                    $li.find("span").popover(popOverSettings);
+                    $('#liUsers').append($li);
                 }
-
-                var $li = $('<li/>').html(data[i].name);
-                $li.append($('<ul />'));
-                console.log($li.children('ul'));
-                if(data[i].eMail.length > 0){
-                    $li.children('ul').append($('<li/>').html(data[i].eMail));
-                }
-
-                if(data[i].smsAddress.length > 0){
-                    $li.children('ul').append($('<li/>').html(data[i].cellPhone + '@' + data[i].smsAddress));
-                }
-                $('#liUsers').append($li);
-
             }
-        }
-  });
+        });
+    }
+
+    $('#btnAddNotify').on('click', function(event){
+        //console.log('Btn Click');
+        //console.log($('#frmNotifyAdd').serialize());
+        $.ajax({
+            method: 'POST',
+            url: '/notifications/add',
+            data: $('#frmNotifyAdd').serialize(),
+            success: function(data){
+                getNotifications();
+                $('#txtTemp').val('');
+                $('#ddlCriteria').val(-1);
+                //console.log(data);
+            },
+            dataType: 'JSON'
+        });
+    })
 </script>

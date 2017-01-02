@@ -26,9 +26,11 @@ if(cluster.isMaster){
 	sqlConfig = null;
 
 	var express = require('express');
+	var bodyParser = require('body-parser');
 	var http = require('http');
-	var path = require('path');
+	var path = require('path');	
 	var app = express();
+	
 
 	//Local Scripts
 	var sensorBoards = require('./models/sensorBoard.js');
@@ -39,7 +41,9 @@ if(cluster.isMaster){
 
 	app.use(express.static(__dirname));
 	app.use(express.static('public'));
-	//app.use(bodyParser.json);
+	//app.use(bodyParser.urlencode({extended:false}));
+	//app.use(bodyParser.json());
+	var urlencodedParser = bodyParser.urlencoded({ extended: false })
 
 	var server = app.listen(3000, function(){
 		try{
@@ -121,16 +125,27 @@ if(cluster.isMaster){
 		});
 	});
 
-	app.get('/notifications/delete/:notificationId', function (req, resp){
-		
-		notifications.del(req.params.notificationId);
+	app.get('/notifications/delete/:notificationId', function (req, resp){		
+		notifications.delete(req.params.notificationId, function(response){
+			resp.send(response);
+		});
 	})
 
-	app.post('/notfications/add/', function(req,resp){
-		console.log(req.body.compareValue);
-		console.log(req.body.isGreaterThan);
-		console.log(req.body.isLessThan);
-		console.log(req.body.isEqualTo);
+	app.post('/notifications/add', urlencodedParser, function(req,resp){
+		if (!req.body) return res.sendStatus(400);
+		var temp = req.body.txtTemp;
+		var criteria = req.body.ddlCriteria;
+		var isGreaterThan = false;
+		var isLessThan = false;
+		var isEqualTo = false;
+
+		if(criteria.indexOf(">") >= 0) isGreaterThan = true;
+		if(criteria.indexOf("<") >= 0) isLessThan = true;
+		if(criteria.indexOf("=") >= 0) isEqualTo = true;
+
+		notifications.create(temp, isGreaterThan, isLessThan, isEqualTo, function(n){
+			resp.send(n);
+		});
 	});
 
 	app.get('/users', function(req, resp){

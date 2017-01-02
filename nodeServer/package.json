@@ -4,6 +4,7 @@
   "description": "This will gather information from outside sensors store into DB and provide access to data on web.",
   "main": "api.js",
   "dependencies": {
+    "body-parser": "^1.15.2",
     "express": "^4.14.0",
     "mysql": "^2.12.0",
     "net": "^1.0.2",

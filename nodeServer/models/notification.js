@@ -23,18 +23,20 @@ notification.prototype.delete = function(callback){
 };
 
 var del = function(notificationId, callback){
+    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
     try{        
         sqlConn.connect(function(err){
-            if(err)
-                throw err;
+            if(err) throw err;
+
             sqlConn.query("UPDATE tNotifications SET isActive = ? WHERE NotificationID = ?", [0, notificationId], function(err, results){                        
-                if(err)
-                    throw err;
+                if(err) throw err;
+                //console.log(results);
                 sqlConn.end();
-                callback(success);
+                callback({success:true});
             });
         });
     }catch(err){
+        callback({success:false});
         console.error(err);
         sqlConn.destroy();
     }
@@ -95,52 +97,54 @@ notification.prototype.send = function(txtMessage, htmlMessage, forceSend, callb
         //for debug only
         var send = true;
         if(send){
-            for(i = 0; i < users.length; i++){
-                //console.log(users[i]);
-                var sentItem = {to : users[i].eMail, htmlMessage: htmlMessage, txtMessage: txtMessage, eMailSuccess: false, smsSuccess: false};
-                //Send notification to each
-                if(users[i].eMail.length > 0){
-                    mailOptions.to = users[i].name + ' <' + users[i].eMail + '>';
+            try{
+                for(i = 0; i < users.length; i++){
+                    //console.log(users[i]);
+                    var sentItem = {to : users[i].eMail, htmlMessage: htmlMessage, txtMessage: txtMessage, eMailSuccess: false, smsSuccess: false};
+                    //Send notification to each
+                    if(users[i].eMail.length > 0){
+                        mailOptions.to = users[i].name + ' <' + users[i].eMail + '>';
 
-                    sentItem.success = transporter.sendMail(mailOptions, function(error, info){
-                        if(error){
-                            console.error(error);
-                        }else{
-                            console.log('Notification Messages Sent: ' + info.response);   
-                        }
-                    });
-                }
-                //console.log(mailOptions);
+                        sentItem.success = transporter.sendMail(mailOptions, function(error, info){
+                            if(error){
+                                console.error(error);
+                            }else{
+                                console.log('Notification Messages Sent: ' + info.response);   
+                            }
+                        });
+                    }
+                    //console.log(mailOptions);
 
-                if(users[i].cellPhone.length > 0 && users[i].smsAddress.length > 0){
-                    mailOptions.to = users[i].name + "'s Cell <" + users[i].cellPhone + '@' + users[i].smsAddress + '>';
-                    mailOptions.subject = "";
-                    mailOptions.htmlMessage = "";
-                    
-                    eMailSuccess = sentItem.success = transporter.sendMail(mailOptions, function(error, info){
-                        if(error){
-                            console.error(error);
-                        }
-                        console.log('Notification Messages Sent: ' + info.response);   
-                    });
+                    if(users[i].cellPhone.length > 0 && users[i].smsAddress.length > 0){
+                        mailOptions.to = users[i].name + "'s Cell <" + users[i].cellPhone + '@' + users[i].smsAddress + '>';
+                        mailOptions.subject = "";
+                        mailOptions.htmlMessage = "";
+                        
+                        eMailSuccess = sentItem.success = transporter.sendMail(mailOptions, function(error, info){
+                            if(error) throw error;
+                            //console.log('Notification Messages Sent: ' + info.response);   
+                        });
+                    }
                 }
+                var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+                try{        
+                    sqlConn.connect(function(err){
+                        if(err)
+                            throw err;
+                        sqlConn.query("UPDATE tNotifications SET LastSent = ? WHERE NotificationID = ?", [new Date().toMysqlFormat(), notificationId], function(err, results){                        
+                            if(err)
+                                throw err;
+                            sqlConn.end();
+                        });
+                    });
+                }catch(err){
+                    console.error(err);
+                    sqlConn.destroy();
+                }                  
+            }catch(err){
+                console.error(err);
             }
-        }
-        var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
-        try{        
-            sqlConn.connect(function(err){
-                if(err)
-                    throw err;
-                sqlConn.query("UPDATE tNotifications SET LastSent = ? WHERE NotificationID = ?", [new Date().toMysqlFormat(), notificationId], function(err, results){                        
-                    if(err)
-                        throw err;
-                    sqlConn.end();
-                });
-            });
-        }catch(err){
-            console.error(err);
-            sqlConn.destroy();
-        }    
+        }  
         return true;      
     });    
 }
@@ -212,28 +216,28 @@ var getNotifications = function getNotificiations(callback){
     }
 }
 
-var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo){            
+var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo, callback){   
+    // console.log('Compare Value:' + compareValue);         
+    // console.log('isGreaterThan:' + isGreaterThan);
+    // console.log('isLessThan:' + isLessThan);
+    // console.log('isEqualTo:' + isEqualTo);
     var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
     try{
         sqlConn.connect(function(err){
-            if(err)
-                throw err; 
-
+            if(err) throw err; 
         //Update the dabase with the new information
-        sqlConn.query('INSERT INTO tNotifications SET ?', {CompareValue: compareValue, isGreaterThan : isGreaterThan, isLessThan : isLessThan, isEqualTo: isEqalTo}, function(err, results){
-            if(err)
-                throw err;
-            
+        sqlConn.query('INSERT INTO tNotifications SET ?', {CompareValue: compareValue, isGreaterThan : isGreaterThan, isLessThan : isLessThan, isEqualTo: isEqualTo}, function(err, results){
+            if(err) throw err;
             sqlConn.end();
-            callback(new notification(result.insertId, compareValue, new Date, isGreaterThan, isLessThan, isEqalTo, true));
+            callback(new notification(results.insertId, compareValue, new Date, isGreaterThan, isLessThan, isEqualTo, true));
             
         });
     });
     }catch(err){
+        callback(null);
         console.error(err);
         sqlConn.destroy();
     }
-    callback(null);
 }
 
 function twoDigits(d) {
@@ -251,6 +255,7 @@ Date.prototype.toMysqlFormat = function() {
 module.exports = {
     notification,
     create,
+    delete: del,
     getNotification,
     getNotifications
 };
