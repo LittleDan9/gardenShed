@@ -61,11 +61,7 @@ if(cluster.isMaster){
 			}
 			setInterval(function(){
 				try{
-<<<<<<< HEAD
 					//console.log('Started Logging');
-=======
-					console.log('Started Logging');
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
 					logger.logConditions(function(result){
 						try{
 							//console.log(result);
@@ -119,43 +115,26 @@ if(cluster.isMaster){
 		}
 	}); 
 
-<<<<<<< HEAD
-	app.get('/notifications', function (resp, resp){
-=======
-	app.get('/notification/get', function (resp, resp){
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
-		
+	app.get('/notifications', function (resp, resp){		
 		notifications.getNotifications(function(result){
 			resp.send(result);
 		});
 	});
 
-<<<<<<< HEAD
-	app.get('/notifications/delete/:notificationId', function (req, resp){
-=======
-	app.get('/notification/delete/:notificationId', function (req, resp){
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
-		
+	app.get('/notifications/delete/:notificationId', function (req, resp){		
 		notifications.del(req.params.notificationId);
 	})
 
-<<<<<<< HEAD
 	app.post('/notfications/add/', function(req,resp){
-=======
-	app.post('/notfication/add/', function(req,resp){
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
 		console.log(req.body.compareValue);
 		console.log(req.body.isGreaterThan);
 		console.log(req.body.isLessThan);
 		console.log(req.body.isEqualTo);
 	});
-<<<<<<< HEAD
 
 	app.get('/users', function(req, resp){
 		user.getUsers(function(results){
 			resp.send(results);
 		});
 	});
-=======
->>>>>>> 62c86910f816d5a87ccf1a5122494a2c5194d17d
 }
