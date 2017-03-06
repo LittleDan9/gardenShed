@@ -6,42 +6,90 @@
   * Company: Little Squared, Inc.
   * Created: 12/03/2016
   ********************************************************/
-   
-  /*******************************************************/
-  /*Includes                                             */
-  /*******************************************************/
-  #include "ESP8266WiFi.h"
-  #include "ESP8266mDNS.h"
-  #include "DHT.h"
-  #include "SPI.h"
-  #include "Adafruit_GFX.h"
-  #include "Adafruit_ILI9341.h"
-  #include "GfxUi.h"
-  #include "WebResource.h"
-  #include "ArduinoJson.h"
-  #include "XPT2046_Touchscreen.h"
+  
+  /*******************************************************/  
+  /*ESP Includes                                         */
+  /*******************************************************/  
   #ifdef ESP8266
     extern "C" {
     #include "user_interface.h"
     }
   #endif  
+  #include "ESP8266WiFi.h"
+  #include "ESP8266mDNS.h"
+  #include "ESP8266WebServer.h"
+  
   /*******************************************************/
-  /*Fonts                                                */
+  /*Sensor Includes                                      */  
+  /*******************************************************/  
+  #include "DHT.h"
+  #include "SPI.h"
+
+  /*******************************************************/
+  /*Graphics Includes                                    */  
+  /*******************************************************/    
+  #include "Adafruit_GFX.h"
+  #include "Adafruit_ILI9341.h"
+  #include "GfxUi.h"
+
+  /*******************************************************/
+  /*Resource Includes                                    */  
+  /*******************************************************/  
+  #include "WebResource.h"
+  #include "ArduinoJson.h"
+  #include "FS.h"
+  #include "EEPROM.h"
+
+  /*******************************************************/
+  /*HTML Includes                                        */
+  /*******************************************************/
+  #include "HomeHTML.h"
+  #include "WiFiConfigHTML.h"
+  #include "SysConfigHTML.h"
+  #include "ConditionsHTML.h"
+  #include "AboutHTML.h"
+  
+  /*******************************************************/
+  /*Font Includes                                        */
   /*******************************************************/  
   #include "Liberation_Sqns_16.h"
   #include "URWGothicLDegree_30.h"
-  #include "URWGothicLDegree_20.h"
   #include "Digital7_40.h"
   #include "Digital7_14.h"
+    
   /*******************************************************/
-  /*Configuration                                        */
+  /*Configurations                                       */
   /*******************************************************/
-  #include "WiFiConfig.h"
+  int wifiAddressStart = 0;
+  struct WiFiConfig {
+    char hostname[30] = "";
+    char ssid[30] = "";
+    char password[30] = "";
+  };
+  WiFiConfig wifiConfig;
+  
+  //This works because the addresses are 0 based
+  int sysAddressStart = sizeof(wifiConfig); 
+  struct SysConfig{
+    char deviceName[30] = "New Device";
+    char deviceLocation[60] = "New Location";
+    bool displayClock = true;
+    long interval = 10000;
+    int screenRotation = 1;
+    char username[30] = "root";
+    char password[30] = "esp8266";
+    unsigned int httpPort = 80;
+    unsigned int tcpPort = 4210;
+    //Raspberry Pi Stuff        
+  };
+  SysConfig sysConfig;
+  
   /*******************************************************/
-  /*System Constans                                      */
+  /*System Constants                                      */
   /*******************************************************/
   #define DEBUG true
   int chipId = system_get_chip_id();
+  ADC_MODE(ADC_VCC); //Allows polling of Supply Voltage
   /*******************************************************/
   /*TFT                                                  */
   /*******************************************************/
@@ -52,22 +100,19 @@
   #define SCREEN_HEIGHT 240
   Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
   GfxUi ui = GfxUi(&tft);
-  /*******************************************************/
-  /*XPT2046 Touch Settings                               */
-  /*******************************************************/
-  //#define CS_PIN D8
-  //XPT2046_Touchscreen ts(CS_PIN);
+  
   /*******************************************************/
   /*DHT Sensor                                           */
   /*******************************************************/
   #define DHTPIN  D3
   #define DHTTYPE DHT22
+  #define TEMP_OFFSET 8
   DHT dht(DHTPIN, DHTTYPE);
   /*******************************************************/
-  /*TCP Server                                           */
+  /*TCP / HTTP Server                                    */
   /*******************************************************/
-  unsigned int localTcpPort = 4210;
-  WiFiServer server(localTcpPort);
+  WiFiServer JSONServer(sysConfig.tcpPort);
+  ESP8266WebServer webServer(sysConfig.httpPort);
   /*******************************************************/
   /*Downloader                                           */
   /*******************************************************/
@@ -77,9 +122,6 @@
   /*******************************************************/
   unsigned long previousMillis = 0;
   unsigned long prevTFTMillis = 0;
-  //Refresh the screen every 15 seconds.
-  const long interval = 15000;
-  const long tftOff = 4000;
   bool isConnected = false;
   /*******************************************************/
   /*Layout Heplper                                       */
@@ -87,6 +129,7 @@
   #define iconBoxWidth 56
   #define iconOffset 20
   #define fontHeight 46
+  
   //Offset the text 10px from the icons.
   int textOffset = (iconOffset + iconBoxWidth + 10);
   int middleOfTop = (SCREEN_HEIGHT/4)*1;
@@ -97,30 +140,36 @@
   float currentHumid = 0.00;
   bool isNotification = false;
   String txtNotify = "";
+  
   /*******************************************************/
   /*Layout Helper - Clock                                */
   /*******************************************************/ 
   #define MAX_FAIL_COUNT 10
-  int lastAccessMillis = 0;
+  unsigned long lastTimeGetMillis = 0;
   int failCount = 0;
+  
   bool isClock = false;
   bool is7Segment = false;
   bool showDate = false;
+
+  
   bool reprintHourHand = false;
   bool reprintMinHand = false;
   float xCenter = (SCREEN_WIDTH/2.0);
   float yCenter = (SCREEN_HEIGHT/2.0)-25;
   int timeFontHeight = 30;
-  int radius = ((SCREEN_HEIGHT-(timeFontHeight*3))/2);
+  int radius = ((SCREEN_HEIGHT-(timeFontHeight*3))/2)-5;
   int curMin = -1;
   int curHour = -1;
+  int curSec = -1;
   String curStrDate = "NA";
   struct point {
     float x;
     float y;
   }; typedef point Point; 
+
   
-  struct datetime {
+  struct DateTime {
     String strDate;
     String strTime;
     int hours = -1;
@@ -134,19 +183,26 @@
     Point curHourHand;
     Point curMinHand;
     Point curSecHand;
-  }; typedef struct datetime DateTime;
-  
+  };  
   DateTime gDateTime;
- 
   
   /*******************************************************/
   /*Function Prototypes                                  */
   /*******************************************************/
-  //Network & TCP Server
-  void setupWiFi(bool forceWait);
+  //Network, TCP & HTTP Server
+  void setupWiFi();
   void checkTCP();
+  void setupHTTP();
+  void getNetworksJSON();
+  void getNetworkSettingsJSON();
+  void getDeviceDetailsJSON();
+  void getTempSensorDataJSON();  
+  void displayHTML(char* HTML);
+  void wifiSaveRequest();
     
   //Application Setup & Control
+  bool saveWiFiConfig(String hostname, String ssid, String password);
+  bool loadWiFiConfig();
   void printNotification();
   void drawProgress(uint8_t percentage, String text);
   void setupScreenBoot();
@@ -161,65 +217,77 @@
   
   //Clock
   bool getDateTime();
-  void drawHour(int hours, int minutes);
-  void drawMinute(int minutes, int seconds);
+  void drawHour(int hours, int minutes, bool erase);
+  void drawMinute(int minutes, int seconds, bool erase);
   void drawSecond(int seconds);
   void drawClockFace();
   void setupScreenClock();
   void eraseHand(Point point);
-  void printDateTime(DateTime *dateTime);  
+  void printDateTime(); 
+  void addSeconds(int seconds);
   /*******************************************************/
   /*Init Routine                                         */
   /*******************************************************/ 
-  void setup() {
+  void setup() {  
     int bootProgress = 0;
-    int totalBootEvents = 4;
+    int totalBootEvents = 5;
     int bootInterval = 100 / totalBootEvents;
+    
     //Setup Serial for debug
     if(DEBUG){
       Serial.begin(115200);
+      Serial.println("");
       Serial.println("Garden Shed Conditions Server");
       Serial.println("ChipID:" + String(chipId));
+      /*
+      Serial.println("WiFi Start: " + String(wifiAddressStart));
+      Serial.println("WiFi Size: " + String(wifiAddressSize));
+      Serial.println("Sys Start: " + String(sysAddressStart));
+      Serial.println("Sys Size: " + String(sysAddressSize));
+      */
     }
     
     //Initialize the DHT Sensor Object and TFT Object
     dht.begin();
     tft.begin();
-    //ts.begin();
     
     //Prepare the interface for use.    
     setupScreenBoot();
       
     //Connect to WiFi
     drawProgress(bootProgress, "Connecting to WiFi");
-    setupWiFi(true);
-
-    //Setup DNS
-    drawProgress(bootProgress += bootInterval, "Starting mDNS Server");
-    if (!MDNS.begin(HOSTNAME)) {
-      if(DEBUG){Serial.println("Error setting up MDNS responder!");}
-      while(1) { 
-        delay(1000);
-      }
+    setupWiFi();    
+    
+    if(WiFi.status() == WL_CONNECTED){//If we are connect to an AP start JSON TCP
+      //Start mDNS
+      drawProgress(bootProgress += bootInterval, "Starting mDNS Server");
+      if (!MDNS.begin(wifiConfig.hostname)) {
+        if(DEBUG){Serial.println("Error setting up MDNS responder!");}
+      }else{
+        if(DEBUG){Serial.println("mDNS responder started");}    
+      }      
+      //Start the TCP Server to notify requester the current conditions.
+      drawProgress(bootProgress += bootInterval, "Starting TCP Server");
+      JSONServer.begin();      
+      MDNS.addService("JSON", "tcp", sysConfig.tcpPort);
+    }else{
+      drawProgress(bootProgress += bootInterval, "No WiFi TCP Server Skipped.");
     }
-    if(DEBUG){Serial.println("mDNS responder started");}
+    //Start web server
+    drawProgress(bootProgress += bootInterval, "Starting HTTP Server");
+    setupHTTP();
+    webServer.begin();
 
-    //Start the TCP Server to notify requester the current conditions.
-    drawProgress(bootProgress += bootInterval, "Starting TCP Server");
-    server.begin();
-    
-    MDNS.addService("JSON", "tcp", localTcpPort);
-    
+    /*
     //We will need to uncomment the next three lines to erase the file system and redownload.
-    //bootInterval = 100 / (totalBootEvents+1);
-    //drawProgress(bootProgress += bootInterval, "Formatting File System");
-    //SPIFFS.format();
-
+    bootInterval = 100 / (totalBootEvents+1);
+    drawProgress(bootProgress += bootInterval, "Formatting File System");
+    SPIFFS.format();
+    */
+    
     //Download necessary external resources.
     drawProgress(bootProgress += bootInterval, "Downloading Resources");
-    SPIFFS.begin();
-    downloadResources(bootProgress);
-
+    downloadResources(bootProgress); 
     //Nmotify the user we are complete.
     drawProgress(bootProgress += bootInterval, "Completed");
 
@@ -228,42 +296,27 @@
     eraseScreen();
     setupScreenConditions();  
     printConditions();
-    yield();  
+    yield();
   }
   /*******************************************************/
   /*Loop Routine                                         */
   /*******************************************************/ 
-  void loop(void) {
-    if(WiFi.status() != WL_CONNECTED){
-      //We are not connected to the WiFi - Attempt to connect
-      setupWiFi(false);
-      //Check WiFi Status Again
-      if(WiFi.status() == WL_CONNECTED){
-        isConnected = true;
-        isNotification = true;
-        txtNotify = "WiFi Connected";
-      }else{
-        isNotification = true;
-        txtNotify = "WiFi Disconnected";
-      }
-    }else{
-      if(isClock){
-        getDateTime();
-      }
-      isConnected = true;
-    }
+  void loop(void) { 
+    yield();   
+    //Check for TCP Request or HTTP Request
+    checkTCP();
+    webServer.handleClient();
+    yield();
 
-    if(isConnected){
-      checkTCP();
-      yield();
-            
+    if(isConnected && sysConfig.displayClock){      
       unsigned long currentMillis = millis();    
-      if(currentMillis - previousMillis >= interval){
+      if(currentMillis - previousMillis >= sysConfig.interval){
         previousMillis = currentMillis;
-        if(!isClock && getDateTime()){
+        if(!isClock && getDateTime()){          
           eraseScreen();
           setupScreenClock();
           isClock = true;
+          yield();
         }else{
           if(isClock){ // We need to setup the screen for conditions only if perviously clock was enabled.
             isClock = false;
@@ -273,72 +326,38 @@
         }
       }//end milli check    
     }else{//end if(isConnected)
+      //If we are not connected to WiFi we need to not try to display the clock.
       isClock = false;
-    }
+    }//end if(isConnected)
     yield();
     
     
-    if(isClock){      
-      printDateTime(gDateTime);
+    if(isClock && sysConfig.displayClock){
+      unsigned long currentMillis = millis();
+      int diff = (int)(currentMillis - lastTimeGetMillis);
+      if(diff > 1000){
+        lastTimeGetMillis = currentMillis;
+        addSeconds((diff / 1000) == 0 ? 1 : (diff/1000));
+      }
+      printDateTime();
+      yield();
     }else{
       printConditions();
+      yield();
     }
     yield();
   }
-
-  /*******************************************************/
-  /*Enable and Connection to WiFi                        */
   /*******************************************************/ 
-  void setupWiFi(bool forceWait){
-    if(DEBUG){Serial.println("Setting Up WiFi");}
-    //Need to set hostname prior to DHCP connection.
-    WiFi.disconnect();
-    WiFi.hostname(HOSTNAME);
-    if(DEBUG){Serial.println("Hostname: " + String(HOSTNAME));}
-    int ssidCount = sizeof(SSIDs)/sizeof(SSIDs[0]);
-    //Connect to Access Point
-    int count = 0;
-    do{  
-      if(DEBUG){Serial.println("Count: " + String(count));}
-      for(int i = 0; i < ssidCount; i++){
-        if(DEBUG){Serial.println("Connecting to '" + String(SSIDs[i]) + "'");}
-        WiFi.begin(SSIDs[i], WIFI_PASS);
-        for(int j = 0; j < 10; j++) {
-          if(DEBUG){Serial.print(".");}
-          delay(500);
-          if(WiFi.status() == WL_CONNECTED){
-            break;
-          }
-        }
-        if(DEBUG){Serial.println("");}
-        if(WiFi.status() != WL_CONNECTED){
-          if(DEBUG){Serial.println("Failed connecting to " + String(SSIDs[i]));}
-        }else{
-          break;
-        }
-      }       
-      if(forceWait){
-        count = 0;
-      }else{
-        count++;    
-      }
-    }while(WiFi.status() != WL_CONNECTED && count < 100);
-    if(DEBUG){Serial.println("");Serial.println("Connected: " + String(WiFi.localIP()));}   
-  }
+  
   
   /*******************************************************/
-  /* Get Current Local time from remote server           */
+  /* Helpers methods for getting / managing time         */
+  /* Drawing / erasing the hands on the clock            */
   /*******************************************************/
   bool getDateTime(){
     bool isTimeConnected = false;
-    int tMillis = millis();    
     WiFiClient timeClient;
     String JSON = "";
-
-    if(tMillis - lastAccessMillis < 850){
-      //Only hit the time server approx every second.
-      return true;
-    }
 
     for(int i = 0; i < 10; i++){
       if(timeClient.connect("littlerichele.com", 80)){
@@ -347,10 +366,10 @@
       }      
     }
     
-    if(isConnected){
+    if(isTimeConnected){
       failCount = 0;
     }else{
-      Serial.println("Unable to access time server");
+      if(DEBUG){Serial.println("Unable to access time server");};
       failCount++;
       if(failCount > MAX_FAIL_COUNT || !isClock){
         isNotification = true;
@@ -359,10 +378,7 @@
       }
       return false;
     }
-        
-    //When did we last get the time?
-    lastAccessMillis = millis();
-  
+         
     timeClient.print(String("GET ") + "/DateTimeNow" + " HTTP/1.1\r\n" +
                "Host: littlerichele.com\r\n" +
                "Connection: close\r\n" +
@@ -380,14 +396,15 @@
       }
     }
     timeClient.stop();
+    yield();
       
     if(JSON.length() <= 0){
       //This is not good, but we connected, so there is an issues on the server
       //or there is a timing issue where we tried to process the response but did not
       //receive it, meaning the network is acting slow.
-      Serial.println("Unable to read time data");
-      //isNotification = true;
-      //txtNotify = "No time data received";
+      if(DEBUG){Serial.println("Unable to read time data");}
+      isNotification = true;
+      txtNotify = "No time data received";
       return false;
     }
 
@@ -395,11 +412,14 @@
     StaticJsonBuffer<300> jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject(JSON);
     if(!root.success()){ 
-      Serial.println("Unable to extract time data");
+      if(DEBUG){Serial.println("Unable to extract time data");}
       isNotification = true;
       txtNotify = "Invalid time data";
       return false;
     }
+    
+    //When did we last get the time?
+    lastTimeGetMillis = millis();
 
     gDateTime.strDate   = root["date"].asString();
     gDateTime.strTime   = root["time"].asString();
@@ -414,11 +434,24 @@
     gDateTime.year      = root["year"];    
     return true;
   }
+
+  void addSeconds(int seconds){
+    if(gDateTime.seconds + seconds > 59){
+      gDateTime.seconds = gDateTime.seconds + seconds - 60;
+      if(gDateTime.minutes == 59){
+        gDateTime.minutes = 0;
+        if(gDateTime.hours == 12){
+          gDateTime.hours = 1;
+        }
+      }else{
+        gDateTime.minutes += 1;
+      }
+    }else{
+      gDateTime.seconds += seconds;
+    }
+  }
   
-  /*******************************************************/
-  /*Helpers for drawing / erasing the hands on the clock */
-  /*******************************************************/  
-  void drawHour(int hours, int minutes){
+  void drawHour(int hours, int minutes, bool erase){
     //Draw Hour Hand - 30° per hour 0.5° per minute.
     float hFraction = (float)(3.0/5.0);
     float hRads = (((hours * 30.0) + (float)(minutes * 0.5))*71)/4068.0;
@@ -426,12 +459,13 @@
     float yHour = yCenter - radius * cos(hRads);
     xHour = (xCenter + (hFraction * (xHour - xCenter)));
     yHour = (yCenter + (hFraction * (yHour - yCenter)));
-    eraseHand(gDateTime.curHourHand);    
-    tft.drawLine(xCenter, yCenter, xHour, yHour, GFX_ORANGE);
+    if(erase)
+      eraseHand(gDateTime.curHourHand);    
+    tft.drawLine(xCenter, yCenter, xHour, yHour, ILI9341_WHITE);
     gDateTime.curHourHand = {xHour, yHour};
   }
 
-  void drawMinute(int minutes, int seconds){
+  void drawMinute(int minutes, int seconds, bool erase){
     //Draw Minute Hand - 6° per Mins
     float mFraction = (float)(5.0/6.0);
     float mRads = (float)((minutes * 6.0) * 71.0)/4068.0;
@@ -439,8 +473,11 @@
     float yMin = yCenter - radius * cos(mRads);
     xMin = (xCenter + (mFraction * (xMin - xCenter)));
     yMin = (yCenter + (mFraction * (yMin - yCenter)));
-    eraseHand(gDateTime.curMinHand);
-    drawHour(gDateTime.hours, gDateTime.minutes);
+
+    if(erase)
+      eraseHand(gDateTime.curMinHand);
+    
+    drawHour(gDateTime.hours, gDateTime.minutes, true);
     tft.drawLine(xCenter, yCenter, xMin, yMin, ILI9341_CYAN);  
     gDateTime.curMinHand = {xMin, yMin};
   }
@@ -451,26 +488,15 @@
     float xSec = xCenter + radius * sin(sRads);
     float ySec = yCenter - radius * cos(sRads);
     eraseHand(gDateTime.curSecHand);
-
-
-    float dxc = gDateTime.curMinHand.x - xCenter;
-    float dyc = gDateTime.curMinHand.y - yCenter;
-
-    float dxl = xSec - xCenter;
-    float dyl = ySec - yCenter;
-
-    if(dxc * dyl - dyc * dxl == 0){
-      drawMinute(gDateTime.minutes, gDateTime.seconds); 
-    }
-
-    dxc = gDateTime.curHourHand.x - xCenter;
-    dyc = gDateTime.curHourHand.y - yCenter;
-        
-    if(dxc * dyl - dyc * dxl == 0){
-     drawHour(gDateTime.hours, gDateTime.minutes);     
-    }
-    tft.drawLine(xCenter, yCenter, xSec, ySec, ILI9341_RED);  
     gDateTime.curSecHand = {xSec, ySec};
+    
+    if(gDateTime.seconds > gDateTime.minutes -1 && gDateTime.seconds < gDateTime.minutes +1 ){
+      drawMinute(gDateTime.minutes, gDateTime.seconds, false); 
+    }
+    
+    drawHour(gDateTime.hours, gDateTime.minutes, false);
+
+    tft.drawLine(xCenter, yCenter, xSec, ySec, ILI9341_RED);
   }
 
   void eraseHand(Point point){
@@ -479,50 +505,341 @@
   }
   
   /*******************************************************/
+  /*Setup and Configure WiFi Connection                  */
+  /*******************************************************/ 
+  void setupWiFi(){
+    WiFi.disconnect();
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    loadWiFiConfig();
+    if(DEBUG){Serial.println("Setting Up WiFi");}
+    //Need to set hostname prior to DHCP connection.
+    WiFi.hostname(wifiConfig.hostname);
+    if(DEBUG){Serial.println("Hostname: " + String(wifiConfig.hostname));}
+    //Connect to Access Point
+    int MAX_ATTEMPTS = 1;
+    int count = 0;
+    while(WiFi.status() != WL_CONNECTED && count < MAX_ATTEMPTS && String(wifiConfig.ssid).length() > 0){
+      count ++;
+      if(DEBUG){Serial.println("Count: " + String(count));}
+      if(DEBUG){Serial.println("Connecting to '" + String(wifiConfig.ssid) + "' w\\ Password '" + String(wifiConfig.password) + "'");}
+
+      WiFi.begin(wifiConfig.ssid, wifiConfig.password);
+      for(int j = 0; j < 10; j++) {
+        if(DEBUG){Serial.print(".");}
+          delay(1000);
+          if(WiFi.status() == WL_CONNECTED){
+            break;
+          }
+      }
+      if(DEBUG){Serial.println("");}
+      
+      if(WiFi.status() != WL_CONNECTED){
+        WiFi.mode(WIFI_AP);
+        if(DEBUG){Serial.println("Failed connecting to '" + String(wifiConfig.ssid) + "'");}
+        bool softAPConnected = WiFi.softAP("ESP8266SetupAP");
+        if(DEBUG){
+          if(softAPConnected){
+            Serial.print("AP Started - IP Address: ");
+            Serial.println(WiFi.softAPIP());
+          }else{
+            Serial.print("AP Failed");
+          }
+        }
+      }else{
+        if(DEBUG){
+          Serial.print("Connected to WiFi " + String(wifiConfig.ssid) + " - IP Address: ");
+          Serial.println(WiFi.localIP());
+        }
+        isConnected = true;
+      }
+    }
+  }
+  
+  /*******************************************************/
   /*Check for a TCP request & attempt to respond         */
   /*******************************************************/ 
   void checkTCP(){
-      WiFiClient client = server.available();
-    // wait for a client to connect
-    if (client)
-    {
-      //tft.println("\n[Client connected]");
-      String data = "";
-      while (client.connected())
+    //Only check for TCP requests when connect to a network
+    if(WiFi.status() == WL_CONNECTED){
+      WiFiClient client = JSONServer.available();
+      // wait for a client to connect
+      if (client)
       {
-        // read line by line what the client (web browser) is requesting
-        if (client.available())
+        //tft.println("\n[Client connected]");
+        String data = "";
+        while (client.connected())
         {
-          String line = client.readStringUntil('\r');
-          if (line == "TH")
-          {  
-            data = "{\"status\" : " + String(1) + ",\"conditions\" : {\"temp\" : \"" + dht.readTemperature(true) + "\", \"humid\" : \"" + dht.readHumidity() + "\"}}";;
-            break;
-          }else{
-            data = "{\"status\":-1, \"message\":\"Unknown Request\"}";
-            break;
+          // read line by line what the client (web browser) is requesting
+          if (client.available())
+          {
+            String line = client.readStringUntil('\r');
+            if (line == "TH")
+            {  
+              float temp = dht.readTemperature(true) - TEMP_OFFSET;
+              data = "{\"status\" : " + String(1) + ",\"conditions\" : {\"temp\" : \"" + temp + "\", \"humid\" : \"" + dht.readHumidity() + "\"}}";;
+              break;
+            }else{
+              data = "{\"status\":-1, \"message\":\"Unknown Request\"}";
+              break;
+            }
           }
         }
-      }
-      //Send the response
-      client.print("{\"chipID\":\"" + String(chipId) + "\", \"data\":" + data + "}");
-      //Wait a moment for the requester to recevied the data
-      delay(1);
-      // close the connection:
-      client.stop();
-      //tft.println("[Client disonnected]");    
-    }
+        //Send the response
+        client.print("{\"chipID\":\"" + String(chipId) + "\", \"data\":" + data + "}");
+        //Wait a moment for the requester to recevied the data
+        delay(1);
+        // close the connection:
+        client.stop();
+        //tft.println("[Client disonnected]");
+      }   
+    }  
   }
 
+  /*******************************************************/
+  /*HTTP Server Configuration and Response Methods       */
+  /*******************************************************/ 
+  void setupHTTP(){ 
+
+    //HTML URLs
+    webServer.on("/", [](){
+      displayHTML(HomeHTML);}
+    );    
+    webServer.on("/wifi", [](){
+      displayHTML(WiFiConfigHTML);}
+    );            
+    webServer.on("/config", [](){
+      displayHTML(SysConfigHTML);}
+    );
+    webServer.on("/conditions", [](){
+      displayHTML(ConditionsHTML);}
+    );    
+    webServer.on("/about", [](){
+      displayHTML(AboutHTML);}
+    );
+
+    //Data Post
+    webServer.on("/wifi/save/", wifiSaveRequest);
+
+    //API URLs
+    webServer.on("/api/getNetworks", getNetworksJSON);
+    webServer.on("/api/getNetworkSettings", getNetworkSettingsJSON);
+    webServer.on("/api/getDeviceDetails", getDeviceDetailsJSON);
+    webServer.on("/api/getConditions", getTempSensorDataJSON);
+  }
+  
+  void getNetworksJSON(){
+    //Make sure authenticated.
+    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+      return webServer.requestAuthentication();
+  
+    int networkCount = WiFi.scanNetworks();
+    String JSON = "{\"networks\":[";
+    for (int i = 0; i < networkCount; i++)
+    {
+      if(i > 0){
+        JSON += ",";
+      }
+      JSON += "{";
+      JSON += "\"SSID\":\"" + String(WiFi.SSID(i)) + "\",";
+      JSON += "\"security\":\"" + String(WiFi.encryptionType(i)) + "\",";
+      JSON += "\"RSSI\":\"" + String(WiFi.RSSI(i)) + "\",";
+      JSON += "\"BSSID\":\"" + WiFi.BSSIDstr(i) + "\",";
+      JSON += "\"channel\":\"" + String(WiFi.channel(i)) + "\",";
+      JSON += "\"isHidden\":" + String(WiFi.isHidden(i) ? "true" : "false") + ",";
+      JSON += "\"selected\":" + String(String(wifiConfig.ssid) == String(WiFi.SSID(i)) ? "true" : "false");
+      JSON += "}";      
+    }
+    JSON += "]}";
+    webServer.send(200, "application/json", JSON);
+  }
+
+  void getNetworkSettingsJSON(){
+    //Make sure authenticated.
+    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+      return webServer.requestAuthentication();
+          
+    String JSON = "{\"hostname\":\"" + String(wifiConfig.hostname) + "\", \"ssid\":\"" + String(wifiConfig.ssid) + "\"}";
+    webServer.send(200, "application/json", JSON);
+  }
+
+  void getDeviceDetailsJSON(){
+    //Make sure authenticated.
+    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+      return webServer.requestAuthentication();
+  
+    String JSON;
+    JSON  = "{";
+    JSON += "\"chipId\":\"" + String(ESP.getChipId()) + "\",";
+    JSON += "\"deviceName\":\"" + String(sysConfig.deviceName) + "\",";
+    JSON += "\"deviceLocation\":\"" + String(sysConfig.deviceLocation) + "\",";
+    JSON += "\"resetReason\":\"" + String(ESP.getResetReason()) + "\",";
+    JSON += "\"freeHeap\":\"" + String(ESP.getFreeHeap()) + "\",";
+    JSON += "\"freeHeapUnit\":\"b\",";
+    JSON += "\"flashChipId\":\"" + String(ESP.getFlashChipId()) + "\",";
+    JSON += "\"flashChipSize\":\"" + String(ESP.getFlashChipSize()) + "\",";
+    JSON += "\"flashChipSizeUnit\":\"b\",";
+    JSON += "\"flashChipRealSize\":\"" + String(ESP.getFlashChipRealSize()) + "\",";
+    JSON += "\"flashChipRealSizeUnit\":\"b\",";
+    JSON += "\"flashChipFreq\":\"" + String(((float)ESP.getFlashChipSpeed() / (float)1000000.0)) + "\",";
+    JSON += "\"flashChipFreqUnit\":\"MHz\",";
+    JSON += "\"supplyVoltage\":\"" + String((float)ESP.getVcc() / (float)1000.0) + "\",";
+    JSON += "\"supplyVoltageUnit\":\"V\"";
+    JSON += "}";      
+    webServer.send(200, "application/json", JSON);    
+  }
+
+  void getTempSensorDataJSON(){
+    //Make sure authenticated.
+    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+      return webServer.requestAuthentication();
+      
+    float temp = dht.readTemperature(true) - TEMP_OFFSET;
+    float humid = dht.readHumidity();    
+    String JSON = "{\"temperature\" : " + String(temp) + ", \"humidity\" : " + String(humid) + "}";
+    webServer.send(200, "application/json", JSON);
+  }
+
+  void displayHTML(const char* HTML){
+     if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+        return webServer.requestAuthentication();
+     webServer.send(200, "text/html", HTML);   
+  }
+  
+  void wifiSaveRequest(){
+    String hostname, ssid, password;
+    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+        return webServer.requestAuthentication();
+    for(int i = 0; i < webServer.args(); i++){
+      if(webServer.argName(i) == "Hostname"){
+        hostname = webServer.arg(i);
+        //Serial.println("Hostname: " + hostname);
+      }
+
+      if(webServer.argName(i) == "SSID"){
+        ssid = webServer.arg(i);
+        //Serial.println("SSID: " + ssid);
+      }
+
+      if(webServer.argName(i) == "Password"){
+        password = webServer.arg(i);
+        //Serial.println("Pass: " + password);
+      }
+    }
+    
+    
+    if(hostname.length() <= 0 || ssid.length() <= 0 || password.length() <= 0){
+      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"One or more invalid configuration items.\"}");
+    }else if (saveWiFiConfig(hostname, ssid, password)) {
+      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");
+      setupWiFi();
+    }else{
+      hostname.toCharArray(wifiConfig.hostname, 30);
+      ssid.toCharArray(wifiConfig.ssid, 30);
+      password.toCharArray(wifiConfig.password, 30); 
+      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");
+    }    
+  }
+  
+  /*******************************************************/
+  /*WiFi Configuration                                   */
+  /*******************************************************/ 
+  bool saveWiFiConfig(String hostname, String ssid, String password){
+    bool writeSuccess = false;
+    if(hostname.length() > 0 && ssid.length() > 0 && password.length() > 0){
+
+      if(DEBUG){Serial.println("Writting values to Config Variable");}
+      hostname.toCharArray(wifiConfig.hostname, sizeof(wifiConfig.hostname));
+      ssid.toCharArray(wifiConfig.ssid, sizeof(wifiConfig.ssid));
+      password.toCharArray(wifiConfig.password, sizeof(wifiConfig.password));
+      
+      //Write config struct to EEPROM
+      EEPROM.begin(512);
+      delay(1);      
+      writeSuccess = true;
+      for (unsigned int t = 0; t <sizeof(wifiConfig); t++)
+      { 
+        //Write Data to EEPROM
+        EEPROM.write(wifiAddressStart + t, *((char*)&wifiConfig + t));
+        //Verify Write
+        if (EEPROM.read(wifiAddressStart + t) != *((char*)&wifiConfig + t))
+        {
+          if(DEBUG){Serial.println("Error Writting value to EEPROM");}
+          writeSuccess = false;
+          break;
+        }
+      }
+      EEPROM.commit();
+      EEPROM.end();
+    }    
+    return writeSuccess;
+  }
+
+  bool loadWiFiConfig(){  
+    EEPROM.begin(512);
+    delay(1);    
+    Serial.println("Load Config");
+    for (unsigned int t = wifiAddressStart; t < sizeof(wifiConfig); t++){
+      *((char*)&wifiConfig + t) = EEPROM.read(wifiAddressStart + t);
+    }
+    EEPROM.end();
+  }
+
+  /*******************************************************/
+  /*System Configuration                                 */
+  /*******************************************************/
+  bool saveSysConfig(bool displayClock, long interval, String username, String password, unsigned int httpPort, unsigned int tcpPort, String deviceName, String deviceLocation){
+    
+    sysConfig.displayClock = displayClock;
+    if(interval > 1000)
+      sysConfig.interval = interval;
+    if(deviceName.length() > 0)
+      deviceName.toCharArray(sysConfig.username, sizeof(sysConfig.deviceName));
+    if(deviceLocation.length() > 0)
+      deviceLocation.toCharArray(sysConfig.deviceLocation, sizeof(sysConfig.deviceLocation));
+    if(username.length() > 0)
+      username.toCharArray(sysConfig.username, sizeof(sysConfig.username));
+    if(password.length() > 0)
+      password.toCharArray(sysConfig.password, sizeof(sysConfig.password));      
+    if(httpPort > 0)
+       sysConfig.httpPort = httpPort;
+    if(tcpPort > 0 )
+      sysConfig.tcpPort = tcpPort;   
+    
+    EEPROM.begin(512);
+    delay(1);
+    bool writeSuccess = true; 
+    for (unsigned int t = sysAddressStart; t <sizeof(sysConfig); t++)
+    { 
+      //Write Data to EEPROM
+      EEPROM.write(sysAddressStart + t, *((char*)&sysConfig + t));
+      //Verify Write
+      if (EEPROM.read(sysAddressStart + t) != *((char*)&sysConfig + t))
+      {
+        Serial.println("Error Writting value to EEPROM");
+        writeSuccess = false;
+        break;
+      }
+    }
+    return writeSuccess;
+  }
+
+  bool loadSysConfig(){      
+      // reads settings from EEPROM
+      for (unsigned int t = sysAddressStart; t<sizeof(sysConfig); t++)
+        *((char*)&sysConfig + t) = EEPROM.read(sysAddressStart + t);
+  }
+    
   /*******************************************************/
   /*Print conditions from the DHT22 Sensor to the screen */
   /*******************************************************/ 
   void printConditions(){
     //Only do a screen refresh when necessary
     float temp = dht.readTemperature(true);
-  
+    //The temperature in the enclouser gets a little warmer due to the electronics.
+    temp -= TEMP_OFFSET;  
     
-    if(temp != currentTemp){
+    if(temp != currentTemp && !isnan(temp)){
       currentTemp = temp;
       //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
       tft.fillRect(textOffset, middleOfTop - halfFontHeight - 16, textBoxWidth, (fontHeight+22), ILI9341_BLACK);     
@@ -531,18 +848,17 @@
 
     //Only do a screen refresh when necessary
     float humid = dht.readHumidity();
-    if(humid != currentHumid){
+    if(humid != currentHumid && !isnan(humid)){
       currentHumid = humid;
       //Erase existing Humidity and Write New Humidity. +2 on font height to covet offset of the '%' sign
       tft.fillRect(textOffset, middleOfBottom - halfFontHeight, textBoxWidth, (fontHeight+2), ILI9341_BLACK);     
       ui.drawString(textOffset, middleOfBottom + halfFontHeight, String(humid) + "%");           
     }
-    printNotification();
   }
   /*******************************************************/
   /*Print Date / Time from remote server                 */
   /*******************************************************/   
-  void printDateTime(DateTime dateTime){   
+  void printDateTime(){        
     eraseNotification(); 
     if(is7Segment){
       if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
@@ -562,28 +878,30 @@
       }
     }else{
       if(!gDateTime.strDate.equals(curStrDate) && showDate){
-        curStrDate = dateTime.strDate;
+        curStrDate = gDateTime.strDate;
         tft.fillRect(0,0, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
-        ui.drawString(SCREEN_WIDTH/2, timeFontHeight+10, dateTime.strDate);      
+        ui.drawString(SCREEN_WIDTH/2, timeFontHeight+10, gDateTime.strDate);      
       }
   
-      if(dateTime.hours12 != curHour || dateTime.minutes != curMin){
+      if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
         tft.fillRect(0, SCREEN_HEIGHT-timeFontHeight, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
-        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-15, dateTime.strTime);  
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-15, gDateTime.strTime);  
       }
       
-      if(dateTime.hours12 != curHour){
-        curHour = dateTime.hours12;
-        drawHour(dateTime.hours, dateTime.minutes);
+      if(gDateTime.hours12 != curHour){
+        curHour = gDateTime.hours12;
+        drawHour(gDateTime.hours, gDateTime.minutes, true);
       }
   
-      if(dateTime.minutes != curMin){
-        curMin = dateTime.minutes;
-        drawMinute(dateTime.minutes, dateTime.seconds);
+      if(gDateTime.minutes != curMin){
+        curMin = gDateTime.minutes;
+        drawMinute(gDateTime.minutes, gDateTime.seconds, true);
       }
   
-      //This got a little crazy
-      drawSecond(dateTime.seconds);
+      if(gDateTime.seconds != curSec){
+        curSec = gDateTime.seconds;
+        drawSecond(gDateTime.seconds);
+      }
       
       tft.fillCircle(xCenter, yCenter, 4, GFX_ORANGE);
     }
@@ -651,7 +969,7 @@
   void setupScreenBoot(){
     eraseScreen();
     tft.setFont(&Liberation_Sans_16);
-    tft.setRotation(3);
+    tft.setRotation(sysConfig.screenRotation);
     tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
     //tft.setTextSize(2);
   }
@@ -659,7 +977,8 @@
   /*******************************************************/
   /* Prepare the screen for displaying the condition     */
   /*******************************************************/
-  void setupScreenConditions(){    
+  void setupScreenConditions(){  
+    SPIFFS.begin(); 
     currentTemp = -99;
     currentHumid = -99;
     tft.setFont(&URWGothicLDegree30pt8b );
@@ -683,6 +1002,7 @@
     imageWidth = 53;    
     xOffSet = ((iconBoxWidth/2) - (imageWidth/2)) + iconOffset;
     ui.drawBmp("humidity.bmp", xOffSet, ((SCREEN_HEIGHT/4)*3)-(imageHeight/2)); //53x67
+    SPIFFS.end();
   }
 
   /*******************************************************/
@@ -692,6 +1012,7 @@
     curStrDate = "NA";
     curHour = -1;
     curMin = -1;
+    curSec = -1;
     ui.setTextAlignment(CENTER);
     
     if(is7Segment){
@@ -700,6 +1021,13 @@
     }else{
       tft.setFont(&URWGothicLDegree30pt8b );
       tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+      
+      //Draw the clock perimiter.
+      //tft.drawCircle(xCenter, yCenter, radius, GFX_ORANGE);
+      //Large Circle
+      tft.fillCircle(xCenter, yCenter, radius+4, GFX_ORANGE);
+      //Inner Face
+      tft.fillCircle(xCenter, yCenter, radius, ILI9341_BLACK);      
       drawClockFace();          
     }
   }
@@ -708,23 +1036,22 @@
   /* Draw the face of a clock on the screen              */
   /*******************************************************/
   void drawClockFace(){
-    //Draw the clock perimiter.
-    tft.drawCircle(xCenter, yCenter, radius, GFX_ORANGE);
-
-    //Draw the hour dashes
-    for(int i = 0; i < 12; i++){
-        float theta = i*2*M_PI/12;
+    //Draw the minute dashes
+    for(int i = 0; i < 60; i++){
+        float theta = i*2*M_PI/60;
         float xOuter = xCenter + radius * sin(theta);
         float yOuter = yCenter - radius * cos(theta);
-        float fraction = 1.0;
+        float fraction = (float)(1.0);
 
-        //Make 0/12, 3, 6, 9 longer dashed
-        if(i % 3 == 0){
-          fraction = (float)(1.0/4.0);
-        }else{
-          fraction = (float)(1.0/6.0);
+        //Make 0/12, 3, 6, 9 longer dashed        
+        if(i % 15 == 0){ //Main Hours 0/12, 3, 6, 8
+          fraction = (float)(1.0/3.0);
+        }else if(i % 5 == 0) { //Sub Hours 1, 2, 4, 5, 7, 8, 10, 11
+          fraction = (float)(1.0/5.0);
+        } else { //minutes marks
+          fraction = (float)(1.0/10.0);
         }
-        
+
         float xEnd = (xOuter + (fraction * (xCenter-xOuter)));
         float yEnd = (yOuter + (fraction * (yCenter-yOuter)));
         tft.drawLine(xOuter, yOuter, xEnd, yEnd, GFX_ORANGE);  
@@ -735,7 +1062,8 @@
   /* Web Resources Download / Callback Function          */
   /*******************************************************/  
   void downloadResources(uint8_t percentage) {
-    char id[5];
+    SPIFFS.begin();
+    //char id[5];
     for (int i = 0; i < 21; i++) {
       //sprintf(id, "%02d", i);
       //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
@@ -745,7 +1073,8 @@
       //sprintf(id, "%02d", i);
       //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
       webResource.downloadFile("http://littlerichele.com/images/humidity-mini-crop.bmp", "humidity.bmp", _downloadCallback);
-    }   
+    }
+    SPIFFS.end();   
   }
 
   void downloadCallback(String filename, int16_t bytesDownloaded, int16_t bytesTotal) {
