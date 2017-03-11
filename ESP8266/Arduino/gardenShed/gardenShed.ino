@@ -48,6 +48,9 @@
   #include "SysConfigHTML.h"
   #include "ConditionsHTML.h"
   #include "AboutHTML.h"
+  #include "JQuery.h"
+  #include "Bootstrap.h"
+  
   
   /*******************************************************/
   /*Font Includes                                        */
@@ -80,6 +83,7 @@
     char password[30] = "esp8266";
     unsigned int httpPort = 80;
     unsigned int tcpPort = 4210;
+    bool deleteFileSystem = false;
     //Raspberry Pi Stuff        
   };
   SysConfig sysConfig;
@@ -197,10 +201,13 @@
   void getNetworkSettingsJSON();
   void getDeviceDetailsJSON();
   void getTempSensorDataJSON();  
-  void displayHTML(char* HTML);
+  void sendHTML(char* HTML);
+  void sendCSS(char* CSS);
+  void sendJS(char* JS);
   void wifiSaveRequest();
     
   //Application Setup & Control
+  void runBootProcess();
   bool saveWiFiConfig(String hostname, String ssid, String password);
   bool loadWiFiConfig();
   void printNotification();
@@ -224,72 +231,24 @@
   void setupScreenClock();
   void eraseHand(Point point);
   void printDateTime(); 
-  void addSeconds(int seconds);
+  void addSeconds();
   /*******************************************************/
   /*Init Routine                                         */
   /*******************************************************/ 
   void setup() {  
-    int bootProgress = 0;
-    int totalBootEvents = 5;
-    int bootInterval = 100 / totalBootEvents;
-    
     //Setup Serial for debug
     if(DEBUG){
       Serial.begin(115200);
       Serial.println("");
       Serial.println("Garden Shed Conditions Server");
       Serial.println("ChipID:" + String(chipId));
-      /*
-      Serial.println("WiFi Start: " + String(wifiAddressStart));
-      Serial.println("WiFi Size: " + String(wifiAddressSize));
-      Serial.println("Sys Start: " + String(sysAddressStart));
-      Serial.println("Sys Size: " + String(sysAddressSize));
-      */
     }
     
     //Initialize the DHT Sensor Object and TFT Object
     dht.begin();
     tft.begin();
-    
-    //Prepare the interface for use.    
-    setupScreenBoot();
-      
-    //Connect to WiFi
-    drawProgress(bootProgress, "Connecting to WiFi");
-    setupWiFi();    
-    
-    if(WiFi.status() == WL_CONNECTED){//If we are connect to an AP start JSON TCP
-      //Start mDNS
-      drawProgress(bootProgress += bootInterval, "Starting mDNS Server");
-      if (!MDNS.begin(wifiConfig.hostname)) {
-        if(DEBUG){Serial.println("Error setting up MDNS responder!");}
-      }else{
-        if(DEBUG){Serial.println("mDNS responder started");}    
-      }      
-      //Start the TCP Server to notify requester the current conditions.
-      drawProgress(bootProgress += bootInterval, "Starting TCP Server");
-      JSONServer.begin();      
-      MDNS.addService("JSON", "tcp", sysConfig.tcpPort);
-    }else{
-      drawProgress(bootProgress += bootInterval, "No WiFi TCP Server Skipped.");
-    }
-    //Start web server
-    drawProgress(bootProgress += bootInterval, "Starting HTTP Server");
-    setupHTTP();
-    webServer.begin();
-
-    /*
-    //We will need to uncomment the next three lines to erase the file system and redownload.
-    bootInterval = 100 / (totalBootEvents+1);
-    drawProgress(bootProgress += bootInterval, "Formatting File System");
-    SPIFFS.format();
-    */
-    
-    //Download necessary external resources.
-    drawProgress(bootProgress += bootInterval, "Downloading Resources");
-    downloadResources(bootProgress); 
-    //Nmotify the user we are complete.
-    drawProgress(bootProgress += bootInterval, "Completed");
+            
+    runBootProcess();
 
     previousMillis = millis();
     //We will always start with condition. Being that this is the primary purpose.
@@ -302,52 +261,103 @@
   /*Loop Routine                                         */
   /*******************************************************/ 
   void loop(void) { 
-    yield();   
+    isConnected = WiFi.status() == WL_CONNECTED;
+    unsigned long currentMillis = millis();    
     //Check for TCP Request or HTTP Request
     checkTCP();
     webServer.handleClient();
-    yield();
-
-    if(isConnected && sysConfig.displayClock){      
-      unsigned long currentMillis = millis();    
-      if(currentMillis - previousMillis >= sysConfig.interval){
-        previousMillis = currentMillis;
-        if(!isClock && getDateTime()){          
-          eraseScreen();
-          setupScreenClock();
-          isClock = true;
-          yield();
-        }else{
-          if(isClock){ // We need to setup the screen for conditions only if perviously clock was enabled.
+    //If we are not connected to a network, we need to setup the WiFi
+    if(isConnected){
+      //We must be connected
+      if(sysConfig.displayClock)
+      {
+        if(currentMillis - previousMillis >= sysConfig.interval){
+          previousMillis = currentMillis;
+          //Time to flip/flop
+          if(!isClock && getDateTime()){ //Not Clock and successfully got time - Setup Clock
+            isClock = true;
+            eraseScreen();
+            setupScreenClock();          
+          }else{ //Is Clock - Setup Conditions
             isClock = false;
             eraseScreen();
             setupScreenConditions();
           }
         }
-      }//end milli check    
-    }else{//end if(isConnected)
-      //If we are not connected to WiFi we need to not try to display the clock.
-      isClock = false;
-    }//end if(isConnected)
-    yield();
-    
-    
-    if(isClock && sysConfig.displayClock){
-      unsigned long currentMillis = millis();
-      int diff = (int)(currentMillis - lastTimeGetMillis);
-      if(diff > 1000){
-        lastTimeGetMillis = currentMillis;
-        addSeconds((diff / 1000) == 0 ? 1 : (diff/1000));
+        
+        if(isClock){
+          addSeconds();
+          printDateTime();
+        }else{
+          printConditions();        
+        }
+      }else{
+        isClock = false;
+        printConditions();
       }
-      printDateTime();
-      yield();
-    }else{
+    } else { //Not Connected
+      if(isClock){
+        //If the clock was displaying, we should end the clock and go to conditions
+        isClock = false;        
+        eraseScreen();
+        setupScreenConditions();        
+      }
+      //Always print the conditions so we don't just loop trying to connect.
       printConditions();
-      yield();
+      //Attempted to Connect
+      setupWiFi();          
     }
-    yield();
   }
   /*******************************************************/ 
+
+  void runBootProcess(){
+    int bootProgress = 0;
+    int totalBootEvents = 5;
+    if(sysConfig.deleteFileSystem)
+      totalBootEvents++;
+    int bootInterval = 100 / totalBootEvents;   
+    
+    //Prepare the interface for use.    
+    setupScreenBoot();
+
+    //Connect to WiFi
+    drawProgress(bootProgress, "Connecting to WiFi");
+    setupWiFi();
+    
+    //Start mDNS
+    drawProgress(bootProgress += bootInterval, "Starting mDNS Server");
+    if (!MDNS.begin(wifiConfig.hostname)) {
+      if(DEBUG){Serial.println("Error setting up MDNS responder!");}
+    }else{
+      if(DEBUG){Serial.println("mDNS responder started");}    
+    }      
+    
+    //Start the TCP Server to notify requester the current conditions.
+    drawProgress(bootProgress += bootInterval, "Starting TCP Server");
+    JSONServer.begin();      
+    MDNS.addService("JSON", "tcp", sysConfig.tcpPort);
+    
+    //Start web server
+    drawProgress(bootProgress += bootInterval, "Starting HTTP Server");
+    setupHTTP();
+    webServer.begin();
+
+    if(sysConfig.deleteFileSystem){
+      //We will need to uncomment the next three lines to erase the file system and redownload.
+      bootInterval = 100 / (totalBootEvents+1);
+      drawProgress(bootProgress += bootInterval, "Formatting File System");
+      SPIFFS.format();
+      sysConfig.deleteFileSystem = false;
+      saveSysConfig();
+    }   
+    
+    //Download necessary external resources.
+    drawProgress(bootProgress += bootInterval, "Downloading Resources");
+    downloadResources(bootProgress); 
+    //Notify the user we are complete.
+    drawProgress(bootProgress += bootInterval, "Completed");
+    delay(2);
+  }
   
   
   /*******************************************************/
@@ -435,7 +445,16 @@
     return true;
   }
 
-  void addSeconds(int seconds){
+  void addSeconds(){
+    //See if we need to add time to the current time.
+    int seconds = 0;
+    unsigned long currentMillis = millis();
+    int diff = (int)(currentMillis - lastTimeGetMillis);
+    if(diff > 1000){
+      lastTimeGetMillis = currentMillis;
+      seconds = (diff / 1000) == 0 ? 1 : (diff/1000);
+    }
+        
     if(gDateTime.seconds + seconds > 59){
       gDateTime.seconds = gDateTime.seconds + seconds - 60;
       if(gDateTime.minutes == 59){
@@ -490,7 +509,7 @@
     eraseHand(gDateTime.curSecHand);
     gDateTime.curSecHand = {xSec, ySec};
     
-    if(gDateTime.seconds > gDateTime.minutes -1 && gDateTime.seconds < gDateTime.minutes +1 ){
+    if(gDateTime.seconds > gDateTime.minutes -2 && gDateTime.seconds < gDateTime.minutes +2 ){
       drawMinute(gDateTime.minutes, gDateTime.seconds, false); 
     }
     
@@ -603,20 +622,20 @@
 
     //HTML URLs
     webServer.on("/", [](){
-      displayHTML(HomeHTML);}
-    );    
+      sendHTML(HomeHTML);
+    });    
     webServer.on("/wifi", [](){
-      displayHTML(WiFiConfigHTML);}
-    );            
+      sendHTML(WiFiConfigHTML);
+    });            
     webServer.on("/config", [](){
-      displayHTML(SysConfigHTML);}
-    );
+      sendHTML(SysConfigHTML);
+    });
     webServer.on("/conditions", [](){
-      displayHTML(ConditionsHTML);}
-    );    
+      sendHTML(ConditionsHTML);
+    });    
     webServer.on("/about", [](){
-      displayHTML(AboutHTML);}
-    );
+      sendHTML(AboutHTML);
+    });    
 
     //Data Post
     webServer.on("/wifi/save/", wifiSaveRequest);
@@ -700,11 +719,19 @@
     webServer.send(200, "application/json", JSON);
   }
 
-  void displayHTML(const char* HTML){
+  void sendHTML(const char* HTML){
      if(!webServer.authenticate(sysConfig.username, sysConfig.password))
         return webServer.requestAuthentication();
      webServer.send(200, "text/html", HTML);   
   }
+
+  void sendCSS(const char* CSS){    
+     webServer.send(200, "text/css", CSS);   
+  }
+
+  void sendJS(const char* JS){     
+     webServer.send(200, "application/javascript", JS);   
+  }    
   
   void wifiSaveRequest(){
     String hostname, ssid, password;
@@ -788,6 +815,25 @@
   /*******************************************************/
   /*System Configuration                                 */
   /*******************************************************/
+  bool saveSysConfig(){
+    EEPROM.begin(512);
+    delay(1);
+    bool writeSuccess = true; 
+    for (unsigned int t = sysAddressStart; t <sizeof(sysConfig); t++)
+    { 
+      //Write Data to EEPROM
+      EEPROM.write(sysAddressStart + t, *((char*)&sysConfig + t));
+      //Verify Write
+      if (EEPROM.read(sysAddressStart + t) != *((char*)&sysConfig + t))
+      {
+        Serial.println("Error Writting value to EEPROM");
+        writeSuccess = false;
+        break;
+      }
+    }
+    return writeSuccess;    
+  }
+  
   bool saveSysConfig(bool displayClock, long interval, String username, String password, unsigned int httpPort, unsigned int tcpPort, String deviceName, String deviceLocation){
     
     sysConfig.displayClock = displayClock;
