@@ -745,7 +745,7 @@
     
     for(int i = 0; i < webServer.args(); i++){
       if(webServer.argName(i) == "DeviceName"){
-        tempConfig.deviceName = webServer.args(i);  
+        webServer.arg(i).toCharArray(tempConfig.deviceName, sizeof(tempConfig.deviceName));  
       }
       
       if(webServer.argName(i) == "DeviceLocation"){
@@ -756,28 +756,28 @@
 
 
 
-    char deviceName[30] = "New Device";
-    char deviceLocation[60] = "New Location";
-    bool displayClock = true;
-    long interval = 10000;
-    int screenRotation = 1;
-    char username[30] = "root";
-    char password[30] = "esp8266";
-    unsigned int httpPort = 80;
-    unsigned int tcpPort = 4210;
-    bool deleteFileSystem = false;
-    
-    if(hostname.length() <= 0 || ssid.length() <= 0 || password.length() <= 0){
-      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"One or more invalid configuration items.\"}");
-    }else if (saveWiFiConfig(hostname, ssid, password)) {
-      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");
-      setupWiFi();
-    }else{
-      hostname.toCharArray(wifiConfig.hostname, 30);
-      ssid.toCharArray(wifiConfig.ssid, 30);
-      password.toCharArray(wifiConfig.password, 30); 
-      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");
-    }        
+//    char deviceName[30] = "New Device";
+//    char deviceLocation[60] = "New Location";
+//    bool displayClock = true;
+//    long interval = 10000;
+//    int screenRotation = 1;
+//    char username[30] = "root";
+//    char password[30] = "esp8266";
+//    unsigned int httpPort = 80;
+//    unsigned int tcpPort = 4210;
+//    bool deleteFileSystem = false;
+//    
+//    if(hostname.length() <= 0 || ssid.length() <= 0 || password.length() <= 0){
+//      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"One or more invalid configuration items.\"}");
+//    }else if (saveWiFiConfig(hostname, ssid, password)) {
+//      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");
+//      setupWiFi();
+//    }else{
+//      hostname.toCharArray(wifiConfig.hostname, 30);
+//      ssid.toCharArray(wifiConfig.ssid, 30);
+//      password.toCharArray(wifiConfig.password, 30); 
+//      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");
+//    }        
     
   }
   
