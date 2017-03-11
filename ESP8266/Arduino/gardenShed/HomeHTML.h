@@ -183,8 +183,8 @@ const char HomeHTML[] PROGMEM = R"=====(
             success: function (result) {
                 if (result != null) {
                     $('#chipId').html(result.chipId);
-                    $('#devName').html(result.devName);
-                    $('#devLocation').html(result.devName);                    
+                    $('#devName').html(result.deviceName);
+                    $('#devLocation').html(result.deviceLocation);                    
                     $('#supplyV').html(result.supplyVoltage + result.supplyVoltageUnit);
                     $('#resetReason').html(result.resetReason);
                     $('#freeHeap').html(result.freeHeap + result.freeHeapUnit);

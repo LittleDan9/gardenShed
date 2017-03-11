@@ -81,8 +81,8 @@
     int screenRotation = 1;
     char username[30] = "root";
     char password[30] = "esp8266";
-    unsigned int httpPort = 80;
-    unsigned int tcpPort = 4210;
+    long httpPort = 80;
+    long tcpPort = 4210;
     bool deleteFileSystem = false;
     //Raspberry Pi Stuff        
   };
@@ -243,6 +243,8 @@
       Serial.println("Garden Shed Conditions Server");
       Serial.println("ChipID:" + String(chipId));
     }
+    
+    loadSysConfig();
     
     //Initialize the DHT Sensor Object and TFT Object
     dht.begin();
@@ -639,6 +641,7 @@
 
     //Data Post
     webServer.on("/wifi/save/", wifiSaveRequest);
+    webServer.on("/config/save/", configSaveRequest);
 
     //API URLs
     webServer.on("/api/getNetworks", getNetworksJSON);
@@ -732,6 +735,51 @@
   void sendJS(const char* JS){     
      webServer.send(200, "application/javascript", JS);   
   }    
+
+  void configSaveRequest(){
+    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+      return webServer.requestAuthentication();
+
+
+    SysConfig tempConfig;
+    
+    for(int i = 0; i < webServer.args(); i++){
+      if(webServer.argName(i) == "DeviceName"){
+        tempConfig.deviceName = webServer.args(i);  
+      }
+      
+      if(webServer.argName(i) == "DeviceLocation"){
+        
+      }      
+      
+    }
+
+
+
+    char deviceName[30] = "New Device";
+    char deviceLocation[60] = "New Location";
+    bool displayClock = true;
+    long interval = 10000;
+    int screenRotation = 1;
+    char username[30] = "root";
+    char password[30] = "esp8266";
+    unsigned int httpPort = 80;
+    unsigned int tcpPort = 4210;
+    bool deleteFileSystem = false;
+    
+    if(hostname.length() <= 0 || ssid.length() <= 0 || password.length() <= 0){
+      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"One or more invalid configuration items.\"}");
+    }else if (saveWiFiConfig(hostname, ssid, password)) {
+      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");
+      setupWiFi();
+    }else{
+      hostname.toCharArray(wifiConfig.hostname, 30);
+      ssid.toCharArray(wifiConfig.ssid, 30);
+      password.toCharArray(wifiConfig.password, 30); 
+      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");
+    }        
+    
+  }
   
   void wifiSaveRequest(){
     String hostname, ssid, password;
@@ -805,7 +853,7 @@
   bool loadWiFiConfig(){  
     EEPROM.begin(512);
     delay(1);    
-    Serial.println("Load Config");
+    if(DEBUG){Serial.println("Load Config");}
     for (unsigned int t = wifiAddressStart; t < sizeof(wifiConfig); t++){
       *((char*)&wifiConfig + t) = EEPROM.read(wifiAddressStart + t);
     }
@@ -817,20 +865,41 @@
   /*******************************************************/
   bool saveSysConfig(){
     EEPROM.begin(512);
-    delay(1);
+    delay(10);
     bool writeSuccess = true; 
-    for (unsigned int t = sysAddressStart; t <sizeof(sysConfig); t++)
-    { 
-      //Write Data to EEPROM
-      EEPROM.write(sysAddressStart + t, *((char*)&sysConfig + t));
-      //Verify Write
-      if (EEPROM.read(sysAddressStart + t) != *((char*)&sysConfig + t))
-      {
-        Serial.println("Error Writting value to EEPROM");
-        writeSuccess = false;
-        break;
-      }
-    }
+    int startAddress = sysAddressStart;
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.deviceName); t++)
+      EEPROM.write(startAddress++, *((char*)&sysConfig.deviceName + t));
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.deviceLocation); t++)
+      EEPROM.write(startAddress++, *((char*)&sysConfig.deviceLocation + t));
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.displayClock); t++)
+      EEPROM.write(startAddress++, *((bool*)&sysConfig.displayClock + t));
+
+    EEPROMWriteLong(sysConfig.interval, startAddress);
+    
+    for(unsigned int t = 0; t < sizeof(sysConfig.screenRotation); t++)
+      EEPROM.write(startAddress++, *((int*)&sysConfig.screenRotation + t)); 
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.username); t++)
+      EEPROM.write(startAddress++, *((char*)&sysConfig.username + t)); 
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.password); t++)
+      EEPROM.write(startAddress++, *((char*)&sysConfig.password + t)); 
+
+    EEPROMWriteLong(sysConfig.httpPort, startAddress);
+    
+    EEPROMWriteLong(sysConfig.tcpPort, startAddress);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.deleteFileSystem); t++)
+      EEPROM.write(startAddress++, *((bool*)&sysConfig.deleteFileSystem + t)); 
+
+    EEPROM.commit();
+    EEPROM.end();
+        
+    if(DEBUG){Serial.println("Write Sys Config: " + String(writeSuccess));}
     return writeSuccess;    
   }
   
@@ -852,30 +921,84 @@
     if(tcpPort > 0 )
       sysConfig.tcpPort = tcpPort;   
     
-    EEPROM.begin(512);
-    delay(1);
-    bool writeSuccess = true; 
-    for (unsigned int t = sysAddressStart; t <sizeof(sysConfig); t++)
-    { 
-      //Write Data to EEPROM
-      EEPROM.write(sysAddressStart + t, *((char*)&sysConfig + t));
-      //Verify Write
-      if (EEPROM.read(sysAddressStart + t) != *((char*)&sysConfig + t))
-      {
-        Serial.println("Error Writting value to EEPROM");
-        writeSuccess = false;
-        break;
-      }
-    }
-    return writeSuccess;
+    return saveSysConfig();
   }
 
-  bool loadSysConfig(){      
-      // reads settings from EEPROM
-      for (unsigned int t = sysAddressStart; t<sizeof(sysConfig); t++)
-        *((char*)&sysConfig + t) = EEPROM.read(sysAddressStart + t);
+  bool loadSysConfig(){   
+    EEPROM.begin(512);
+    delay(10);       
+
+    int startAddress = sysAddressStart;
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.deviceName); t++)
+      *((char*)&sysConfig.deviceName + t) = EEPROM.read(startAddress++);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.deviceLocation); t++)
+      *((char*)&sysConfig.deviceLocation + t) = EEPROM.read(startAddress++);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.displayClock); t++)
+      *((bool*)&sysConfig.displayClock + t) = EEPROM.read(startAddress++);
+
+    sysConfig.interval = EEPROMReadLong(startAddress);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.screenRotation); t++)
+      *((int*)&sysConfig.screenRotation + t) = EEPROM.read(startAddress++);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.username); t++)
+      *((char*)&sysConfig.username + t) = EEPROM.read(startAddress++);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.password); t++)
+      *((char*)&sysConfig.password + t) = EEPROM.read(startAddress++);
+
+    sysConfig.httpPort = EEPROMReadLong(startAddress);
+
+    sysConfig.tcpPort = EEPROMReadLong(startAddress);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.deleteFileSystem); t++)
+      *((bool*)&sysConfig.deleteFileSystem + t) = EEPROM.read(startAddress++);
+
+    EEPROM.end();
+    
+
+    if(DEBUG){
+      Serial.println("Size of Sys Config: " + String(sizeof(sysConfig)));
+      Serial.println("Device Name: " + String(sysConfig.deviceName));
+      Serial.println("Device Location: " + String(sysConfig.deviceLocation));
+      Serial.println("Display Clock: " + String(sysConfig.displayClock));
+      Serial.println("Interval: " + String(sysConfig.interval));
+      Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
+      Serial.println("Username: " + String(sysConfig.username));
+      Serial.println("Password: " + String(sysConfig.password));
+      Serial.println("HTTP Port: " + String(sysConfig.httpPort));
+      Serial.println("TCP Port: " + String(sysConfig.tcpPort));
+      Serial.println("Delete File System: " + String(sysConfig.deleteFileSystem));
+    }
   }
     
+  void EEPROMWriteLong(long value, int &address){
+    byte four  = (value & 0xFF);
+    byte three = ((value >> 8) & 0xFF);
+    byte two   = ((value >> 16) & 0xFF);
+    byte one   = ((value >> 24) & 0xFF);
+
+    //Write the 4 bytes into the eeprom memory.
+    EEPROM.write(address++, four);
+    EEPROM.write(address++, three);
+    EEPROM.write(address++, two);
+    EEPROM.write(address++, one);    
+  }
+
+  long EEPROMReadLong(int &address){
+    //Read the 4 bytes from the eeprom memory.
+    long four  = EEPROM.read(address++);
+    long three = EEPROM.read(address++);
+    long two   = EEPROM.read(address++);
+    long one   = EEPROM.read(address++);
+
+    //Return the recomposed long by using bitshift.
+    return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
+  }
+  
   /*******************************************************/
   /*Print conditions from the DHT22 Sensor to the screen */
   /*******************************************************/ 
