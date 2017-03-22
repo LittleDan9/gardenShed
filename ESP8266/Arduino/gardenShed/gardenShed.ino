@@ -48,6 +48,7 @@
   #include "SysConfigHTML.h"
   #include "ConditionsHTML.h"
   #include "AboutHTML.h"
+  #include "FourOOneHTML.h"
   #include "JQuery.h"
   #include "Bootstrap.h"
   
@@ -75,7 +76,8 @@
   int sysAddressStart = sizeof(wifiConfig); 
   struct SysConfig{
     char deviceName[30] = "New Device";
-    char deviceLocation[60] = "New Location";
+    char deviceLocation[30] = "New Location";
+    int roomTemp = 70;
     bool displayClock = true;
     long interval = 10000;
     int screenRotation = 1;
@@ -87,11 +89,14 @@
     //Raspberry Pi Stuff        
   };
   SysConfig sysConfig;
-  
+
+  #define MAX_LOGIN_ATTEMPTS 3
+  int loginAttempts = 0;
   /*******************************************************/
   /*System Constants                                      */
   /*******************************************************/
   #define DEBUG true
+  #define RELAY_PIN D0
   int chipId = system_get_chip_id();
   ADC_MODE(ADC_VCC); //Allows polling of Supply Voltage
   /*******************************************************/
@@ -235,21 +240,24 @@
   /*******************************************************/
   /*Init Routine                                         */
   /*******************************************************/ 
-  void setup() {  
+  void setup() { 
     //Setup Serial for debug
+    pinMode(RELAY_PIN, OUTPUT); 
     if(DEBUG){
       Serial.begin(115200);
       Serial.println("");
       Serial.println("Garden Shed Conditions Server");
       Serial.println("ChipID:" + String(chipId));
     }
-    
+
+    //saveSysConfig();
     loadSysConfig();
-    
     //Initialize the DHT Sensor Object and TFT Object
     dht.begin();
     tft.begin();
-            
+    
+    thermastatControl();            
+    
     runBootProcess();
 
     previousMillis = millis();
@@ -262,7 +270,9 @@
   /*******************************************************/
   /*Loop Routine                                         */
   /*******************************************************/ 
+  bool toggle = HIGH;
   void loop(void) { 
+    thermastatControl();      
     isConnected = WiFi.status() == WL_CONNECTED;
     unsigned long currentMillis = millis();    
     //Check for TCP Request or HTTP Request
@@ -311,6 +321,16 @@
     }
   }
   /*******************************************************/ 
+  void turnHeaterOn(){    
+    Serial.println("Turn On");    
+    digitalWrite(RELAY_PIN, LOW);
+  }
+
+  void turnHeaterOff(){
+    Serial.println("Turn Off");
+    digitalWrite(RELAY_PIN, HIGH);
+  }
+
 
   void runBootProcess(){
     int bootProgress = 0;
@@ -640,20 +660,21 @@
     });    
 
     //Data Post
-    webServer.on("/wifi/save/", wifiSaveRequest);
-    webServer.on("/config/save/", configSaveRequest);
+    webServer.on("/wifi/save", wifiSaveRequest);
+    webServer.on("/config/save", configSaveRequest);
 
     //API URLs
     webServer.on("/api/getNetworks", getNetworksJSON);
     webServer.on("/api/getNetworkSettings", getNetworkSettingsJSON);
     webServer.on("/api/getDeviceDetails", getDeviceDetailsJSON);
     webServer.on("/api/getConditions", getTempSensorDataJSON);
+    webServer.on("/api/getSysSettings", getSystemSettingsJSON);
   }
   
   void getNetworksJSON(){
-    //Make sure authenticated.
-    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-      return webServer.requestAuthentication();
+    //Make sure authenticated.    
+    if(!isHTTPAuthorized())
+      return;
   
     int networkCount = WiFi.scanNetworks();
     String JSON = "{\"networks\":[";
@@ -678,8 +699,8 @@
 
   void getNetworkSettingsJSON(){
     //Make sure authenticated.
-    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-      return webServer.requestAuthentication();
+    if(!isHTTPAuthorized())
+      return;
           
     String JSON = "{\"hostname\":\"" + String(wifiConfig.hostname) + "\", \"ssid\":\"" + String(wifiConfig.ssid) + "\"}";
     webServer.send(200, "application/json", JSON);
@@ -687,8 +708,8 @@
 
   void getDeviceDetailsJSON(){
     //Make sure authenticated.
-    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-      return webServer.requestAuthentication();
+    if(!isHTTPAuthorized())
+      return;
   
     String JSON;
     JSON  = "{";
@@ -711,10 +732,29 @@
     webServer.send(200, "application/json", JSON);    
   }
 
+  void getSystemSettingsJSON(){
+    if(!isHTTPAuthorized())
+      return;
+          
+    String JSON = "{";
+    JSON += "\"deviceName\":\"" + String(sysConfig.deviceName) + "\", ";
+    JSON += "\"deviceLocation\":\"" + String(sysConfig.deviceLocation) + "\", ";
+    JSON += "\"displayClock\":" + String(sysConfig.displayClock ? "true" : "false") + ", ";
+    JSON += "\"interval\":" + String(sysConfig.interval / 1000) + ", ";
+    JSON += "\"screenRotation\":" + String(sysConfig.screenRotation) + ", ";
+    JSON += "\"username\":\"" + String(sysConfig.username) + "\", ";
+    JSON += "\"httpPort\":" + String(sysConfig.httpPort) + ", ";
+    JSON += "\"tcpPort\":" + String(sysConfig.tcpPort) + ", ";
+    JSON += "\"roomTemperature\":" + String(sysConfig.roomTemp) + ", ";
+    JSON += "\"deleteFileSystem\":" + String(sysConfig.deleteFileSystem ? "true" : "false");
+    JSON += "}";
+    webServer.send(200, "application/json", JSON);
+  }
+
   void getTempSensorDataJSON(){
     //Make sure authenticated.
-    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-      return webServer.requestAuthentication();
+    if(!isHTTPAuthorized())
+      return;
       
     float temp = dht.readTemperature(true) - TEMP_OFFSET;
     float humid = dht.readHumidity();    
@@ -723,62 +763,146 @@
   }
 
   void sendHTML(const char* HTML){
-     if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-        return webServer.requestAuthentication();
+    if(!isHTTPAuthorized())
+      return;
      webServer.send(200, "text/html", HTML);   
   }
 
   void sendCSS(const char* CSS){    
+    if(!isHTTPAuthorized())
+      return;    
      webServer.send(200, "text/css", CSS);   
   }
 
-  void sendJS(const char* JS){     
+  void sendJS(const char* JS){   
+    if(!isHTTPAuthorized())
+      return;      
      webServer.send(200, "application/javascript", JS);   
-  }    
+  }   
+
+   bool isHTTPAuthorized(){
+    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
+    {
+      Serial.print("Login Attempts: ");
+      Serial.println(loginAttempts);
+      if(loginAttempts >= MAX_LOGIN_ATTEMPTS){
+        loginAttempts = 0;
+        webServer.send(200, "text/html", FourOOneHTML);  
+        return false;
+      }else{
+        loginAttempts ++;
+        webServer.requestAuthentication();
+        return false;
+      }
+    }
+    return true;
+   }
 
   void configSaveRequest(){
+    bool updateScreen = false;
+    
     if(!webServer.authenticate(sysConfig.username, sysConfig.password))
       return webServer.requestAuthentication();
-
-
-    SysConfig tempConfig;
     
     for(int i = 0; i < webServer.args(); i++){
       if(webServer.argName(i) == "DeviceName"){
-        webServer.arg(i).toCharArray(tempConfig.deviceName, sizeof(tempConfig.deviceName));  
+        webServer.arg(i).toCharArray(sysConfig.deviceName, sizeof(sysConfig.deviceName));  
       }
       
       if(webServer.argName(i) == "DeviceLocation"){
-        
-      }      
+        webServer.arg(i).toCharArray(sysConfig.deviceLocation, sizeof(sysConfig.deviceLocation));
+      }
+
+      if(webServer.argName(i) == "Username" && webServer.arg(i).length() > 0){
+        webServer.arg(i).toCharArray(sysConfig.username, sizeof(sysConfig.username));
+      }
+
+      if(webServer.argName(i) == "Password" && webServer.arg(i).length() > 0){
+        webServer.arg(i).toCharArray(sysConfig.password, sizeof(sysConfig.password));
+      }
+
+      if(webServer.argName(i) == "Interval"){
+        char temp[10];
+        webServer.arg(i).toCharArray(temp, 10);        
+        sysConfig.interval = (atol(temp) * 1000);
+      }  
       
+      if(webServer.argName(i) == "HTTPPort"){
+        char temp[10];
+        webServer.arg(i).toCharArray(temp, 10);
+        sysConfig.httpPort = atol(temp);
+      }  
+
+      if(webServer.argName(i) == "TCPPort"){
+        char temp[10];
+        webServer.arg(i).toCharArray(temp, 10);
+        sysConfig.tcpPort = atol(temp);
+      }        
+
+      if(webServer.argName(i) == "ScreenRotation"){
+        int temp = webServer.arg(i).toInt();
+        if(temp != sysConfig.screenRotation){
+          sysConfig.screenRotation = temp;
+          tft.setRotation(sysConfig.screenRotation);
+          updateScreen = true;
+        }
+      }
+
+      if(webServer.argName(i) == "DeleteFileSystem"){
+        if(webServer.arg(i) == "true")
+          sysConfig.deleteFileSystem = true;
+        else
+          sysConfig.deleteFileSystem = false;
+      } 
+
+      if(webServer.argName(i) == "DisplayClock"){
+        if(webServer.arg(i) == "true")
+          sysConfig.displayClock = true;
+        else{
+          sysConfig.displayClock = false;
+          isClock = false;
+        }
+      }  
+
+      if(webServer.argName(i) == "RoomTemperature"){
+        char temp[10];
+        webServer.arg(i).toCharArray(temp, 10);
+        sysConfig.roomTemp = atoi(temp);
+      }           
     }
 
-
-
-//    char deviceName[30] = "New Device";
-//    char deviceLocation[60] = "New Location";
-//    bool displayClock = true;
-//    long interval = 10000;
-//    int screenRotation = 1;
-//    char username[30] = "root";
-//    char password[30] = "esp8266";
-//    unsigned int httpPort = 80;
-//    unsigned int tcpPort = 4210;
-//    bool deleteFileSystem = false;
-//    
-//    if(hostname.length() <= 0 || ssid.length() <= 0 || password.length() <= 0){
-//      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"One or more invalid configuration items.\"}");
-//    }else if (saveWiFiConfig(hostname, ssid, password)) {
-//      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");
-//      setupWiFi();
-//    }else{
-//      hostname.toCharArray(wifiConfig.hostname, 30);
-//      ssid.toCharArray(wifiConfig.ssid, 30);
-//      password.toCharArray(wifiConfig.password, 30); 
-//      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");
-//    }        
+    if(updateScreen){
+      eraseScreen();
+      if(isClock && sysConfig.displayClock){            
+        setupScreenClock();
+        printDateTime();
+      }else{
+        setupScreenConditions();
+        printConditions();
+      }
+      delay(1);
+    }
     
+    if(saveSysConfig()){
+      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");      
+    }else{
+      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");      
+    }
+
+    if(DEBUG){
+      Serial.println("Size of Sys Config: " + String(sizeof(sysConfig)));
+      Serial.println("Device Name: " + String(sysConfig.deviceName));
+      Serial.println("Device Location: " + String(sysConfig.deviceLocation));
+      Serial.println("Room Temperature: " + String(sysConfig.roomTemp));
+      Serial.println("Display Clock: " + String(sysConfig.displayClock));
+      Serial.println("Interval: " + String(sysConfig.interval));
+      Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
+      Serial.println("Username: " + String(sysConfig.username));
+      Serial.println("Password: " + String(sysConfig.password));
+      Serial.println("HTTP Port: " + String(sysConfig.httpPort));
+      Serial.println("TCP Port: " + String(sysConfig.tcpPort));
+      Serial.println("Delete File System: " + String(sysConfig.deleteFileSystem));
+    }        
   }
   
   void wifiSaveRequest(){
@@ -875,6 +999,9 @@
     for(unsigned int t = 0; t < sizeof(sysConfig.deviceLocation); t++)
       EEPROM.write(startAddress++, *((char*)&sysConfig.deviceLocation + t));
 
+    for(unsigned int t = 0; t < sizeof(sysConfig.roomTemp); t++)
+      EEPROM.write(startAddress++, *((int*)&sysConfig.roomTemp + t));       
+
     for(unsigned int t = 0; t < sizeof(sysConfig.displayClock); t++)
       EEPROM.write(startAddress++, *((bool*)&sysConfig.displayClock + t));
 
@@ -903,7 +1030,7 @@
     return writeSuccess;    
   }
   
-  bool saveSysConfig(bool displayClock, long interval, String username, String password, unsigned int httpPort, unsigned int tcpPort, String deviceName, String deviceLocation){
+  bool saveSysConfig(bool displayClock, long interval, String username, String password, unsigned int httpPort, unsigned int tcpPort, String deviceName, String deviceLocation, int roomTemp){
     
     sysConfig.displayClock = displayClock;
     if(interval > 1000)
@@ -919,7 +1046,9 @@
     if(httpPort > 0)
        sysConfig.httpPort = httpPort;
     if(tcpPort > 0 )
-      sysConfig.tcpPort = tcpPort;   
+      sysConfig.tcpPort = tcpPort;
+    if(roomTemp > 0)
+      sysConfig.roomTemp = roomTemp;
     
     return saveSysConfig();
   }
@@ -928,6 +1057,9 @@
     EEPROM.begin(512);
     delay(10);       
 
+    Serial.println("Load Sys Config");
+    Serial.println(sizeof(WiFiConfig) + sizeof(sysConfig));
+    
     int startAddress = sysAddressStart;
 
     for(unsigned int t = 0; t < sizeof(sysConfig.deviceName); t++)
@@ -935,6 +1067,9 @@
 
     for(unsigned int t = 0; t < sizeof(sysConfig.deviceLocation); t++)
       *((char*)&sysConfig.deviceLocation + t) = EEPROM.read(startAddress++);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.roomTemp); t++)
+      *((int*)&sysConfig.roomTemp + t) = EEPROM.read(startAddress++);        
 
     for(unsigned int t = 0; t < sizeof(sysConfig.displayClock); t++)
       *((bool*)&sysConfig.displayClock + t) = EEPROM.read(startAddress++);
@@ -963,6 +1098,7 @@
     if(DEBUG){
       Serial.println("Size of Sys Config: " + String(sizeof(sysConfig)));
       Serial.println("Device Name: " + String(sysConfig.deviceName));
+      Serial.println("Room Temperature: " + String(sysConfig.roomTemp));
       Serial.println("Device Location: " + String(sysConfig.deviceLocation));
       Serial.println("Display Clock: " + String(sysConfig.displayClock));
       Serial.println("Interval: " + String(sysConfig.interval));
@@ -1002,6 +1138,17 @@
   /*******************************************************/
   /*Print conditions from the DHT22 Sensor to the screen */
   /*******************************************************/ 
+  void thermastatControl(){
+    float temp = dht.readTemperature(true) - TEMP_OFFSET;
+    Serial.println("Temp: " + String(temp));
+    Serial.println("Room Temp: " + String(sysConfig.roomTemp));
+    if(temp > sysConfig.roomTemp){
+      turnHeaterOff();
+    }else if(temp < sysConfig.roomTemp - 1){
+      turnHeaterOn();
+    }
+  }
+  
   void printConditions(){
     //Only do a screen refresh when necessary
     float temp = dht.readTemperature(true);

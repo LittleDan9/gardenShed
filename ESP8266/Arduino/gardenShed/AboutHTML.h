@@ -15,10 +15,18 @@ const char AboutHTML[] PROGMEM = R"=====(
             -webkit-text-stroke: 1px black;
             text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
         }
+        .detailItem {
+            font-size:18pt;
+            margin: 10px 0px;
+        }      
+        .detailItem .glyphicon, .fa{
+            margin-right:20px;
+        }  
     </style>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">    
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"/>
     <script type="text/javascript">
         function showLoading() {
             $('#status').html("");
@@ -101,8 +109,14 @@ const char AboutHTML[] PROGMEM = R"=====(
             </div>        
             <div class="panel-body content">
                 <div class="row">
-                    <div class="col-sm-offset-1 col-xs-10">
-                        Create By: Daniel R. Little
+                    <div class="col-sm-offset-1 col-xs-10 detailItem">
+                        <p>Author:</p>
+                        <p><span class="glyphicon glyphicon-user"></span>Daniel R. Little</p>
+                        <p><span class="fa fa-building-o"></span>Little Squared, Inc.</p>
+                        <p>&nbsp;</p>
+                        <p>Copyright:</p>
+                        <p><span class="glyphicon glyphicon-copyright-mark"></span>GNU GENERAL PUBLIC LICENSE</p>
+
                     </div>
                 </div>
             </div>
