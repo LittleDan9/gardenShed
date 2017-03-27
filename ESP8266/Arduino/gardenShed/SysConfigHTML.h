@@ -14,7 +14,10 @@ const char SysConfigHTML[] PROGMEM = R"=====(
             color: white;
             -webkit-text-stroke: 1px black;
             text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-        }
+        }      
+
+        
+        
     </style>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
@@ -25,6 +28,7 @@ const char SysConfigHTML[] PROGMEM = R"=====(
             $('#errorMessage').html("");
             $('#loadingFooter').addClass('hidden');
             $('#loadingBar').removeClass('hidden');
+            //$('#processingModal').modal({backdrop: 'static', keyboard: false, show: true});
             $('#processingModal').modal('show');
         }
 
@@ -188,7 +192,20 @@ const char SysConfigHTML[] PROGMEM = R"=====(
                                                                 <option value="3">180&deg; Landscape</option>
                                                                 <option value="2">270&deg; Portrait</option>
                                                             </select>
-                                                        </div>                                                                                       
+                                                        </div>                                                                                                                                                                                                
+                                                        <div class="form-group">
+                                                            <label for="txtInterval" class="control-label">Clock / Conditions Time Interval in Seconds (Default: 10)</label>
+                                                            <input type="text" class="form-control" id="txtInterval" placeholder="##" maxlength="6">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                             </div> 
+                                            <div class="panel panel-info">
+                                                <div class="panel-heading">
+                                                    <h4>Clock Settings</h4>
+                                                </div>
+                                                <div class="panel-body">
+                                                    <div class="col-xs-10 col-xs-offset-1">
                                                         <div class="form-group">
                                                             <label for="rdoDisplayClock" class="control-label">Display Clock</label><br/>
                                                             <label class="radio-inline">
@@ -199,12 +216,58 @@ const char SysConfigHTML[] PROGMEM = R"=====(
                                                             </label>                                         
                                                         </div>
                                                         <div class="form-group">
-                                                            <label for="txtInterval" class="control-label">Clock / Conditions Time Interval in Seconds (Default: 10)</label>
-                                                            <input type="text" class="form-control" id="txtInterval" placeholder="##" maxlength="6">
+                                                            <label for="ddlClockType" class="control-label">Clock Type&nbsp; </label>
+                                                            <select class="form-control" id="ddlClockType" onchange="$(this).val() == 1 ? $('#divClockColor').collapse('show') : $('#divClockColor').collapse('hide');">
+                                                                <option value="-1">Select a Clock Face</option>
+                                                                <option value="0">Analog</option>
+                                                                <option value="1">7-Segment</option>
+                                                            </select>
+                                                        </div>  
+                                                        <div id="divClockColor" class="collapse">
+                                                            <div class="form-group">
+                                                                <label for="ddlClockColor" class="control-label">Clock Color&nbsp; </label>
+                                                                <div class="dropdown">
+                                                                    <button id="dLabel" class="btn btn-default" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                                        <span id="selectedColor">Select a Color</span>
+                                                                        <span class="caret"></span>
+                                                                    </button>
+                                                                    <ul id="ddlColorItems" class="dropdown-menu" aria-labelledby="dLabel"></ul>
+                                                                    <input type="hidden" id="txtClockColor" value=""/>
+                                                                </div>
+                                                            </div>
+                                                            <div class="form-group">
+                                                                <label for="ddlClockBkgColor" class="control-label">Clock Background Color&nbsp; </label>
+                                                                <div class="dropdown">
+                                                                    <button id="dLabel" class="btn btn-default" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                                        <span id="selectedBkgColor">Select a Color</span>
+                                                                        <span class="caret"></span>
+                                                                    </button>
+                                                                    <ul id="ddlBkgColorItems" class="dropdown-menu" aria-labelledby="dLabel"></ul>
+                                                                    <input type="hidden" id="txtClockBkgColor" value=""/>
+                                                                </div>
+                                                            </div>                                                            
                                                         </div>
-                                                    </div>
+                                                        <div class="form-group">
+                                                            <label for="rdoDisplayDate" class="control-label">Display Date</label><br/>
+                                                            <label class="radio-inline">
+                                                                <input type="radio" name="displayDateOption" id="rdoDisplayDateYes" value="true" checked> Yes
+                                                            </label>
+                                                            <label class="radio-inline">
+                                                                <input type="radio" name="displayDateOption" id="rdoDisplayDateNo" value="false"> No (Default)
+                                                            </label>                                         
+                                                        </div>  
+                                                        <div class="form-group">
+                                                            <label for="rdoLeadingZero" class="control-label">Leading Zero on Hour</label><br/>
+                                                            <label class="radio-inline">
+                                                                <input type="radio" name="leadingZeroOption" id="rdoLeadingZeroYes" value="true" checked> Yes
+                                                            </label>
+                                                            <label class="radio-inline">
+                                                                <input type="radio" name="leadingZeroOption" id="rdoLeadingZeroNo" value="false"> No (Default)
+                                                            </label>                                         
+                                                        </div>                                                          
+                                                    </div> 
                                                 </div>
-                                             </div> 
+                                            </div>
                                             <div class="panel panel-info">
                                                 <div class="panel-heading">
                                                     <h4>Web Server Settings</h4>
@@ -241,111 +304,6 @@ const char SysConfigHTML[] PROGMEM = R"=====(
         </div>
     </div>
 </body>
-<script type="text/javascript">
-$(function () {
-  $('[data-toggle="popover"]').popover();
-    $.ajax({
-        url: '/api/getSysSettings',
-        data: "",
-        dataType: 'json',
-        success: function (result) {
-            console.log(result);
-            if (result != null) {
-                $('#txtDeviceName').val(result.deviceName);
-                $('#txtDeviceLocation').val(result.deviceLocation);
-                $('[name="displayClockOption"]').prop('checked', false);
-                $('[name="displayClockOption"][value="' + result.displayClock + '"]').prop('checked', true);
-                $('#txtInterval').val(result.interval);
-                $('#ddlScreenRotation option[value="' + result.screenRotation + '"]').prop("selected", true);
-                $('#txtUsername').val(result.username);
-                $('#txtHTTPPort').val(result.httpPort);
-                $('#txtTCPPort').val(result.tcpPort);
-                $('#txtRoomTemp').val(result.roomTemperature);
-                $('[name="formatOption"]').prop('checked', false);
-                $('[name="formatOption"][value="' + result.deleteFileSystem + '"]').prop('checked', true);
-            }
-            hideLoading();
-            $('#btnSave').prop('disabled', false);
-        },
-        error: function () {
-            setModalStatus(false);
-            setModalError('Failed to retrieve system configuration. Refresh page to try again.');                
-        }
-    });
-});
-
-$('#formatWarning').on('mouseover', function(){
-    $('#formatWarning').popover('show');
-});
-$('#formatWarning').on('mouseout', function(){
-    setInterval(function(){$('#formatWarning').popover('hide'); clearInterval()}, 10000);   
-});
-
-$('#rotationWarning').on('mouseover', function(){
-    $('#rotationWarning').popover('show');
-});
-$('#rotationWarning').on('mouseout', function(){
-    setInterval(function(){$('#rotationWarning').popover('hide'); clearInterval()}, 10000);   
-});
-
-$(document).on('click', function(){
-    $('#formatWarning').popover('hide');
-    $('#rotationWarning').popover('hide');
-});
-
-$('#btnSave').on('click', function(){
-    showLoading();
-    var toSend = {
-        DeviceName: $('#txtDeviceName').val(),
-        DeviceLocation: $('#txtDeviceLocation').val(),
-        Username: $('#txtUsername').val(),
-        Password: $('#txtPassword').val(),
-        Interval: $('#txtInterval').val(),
-        HTTPPort: $('#txtHTTPPort').val(),
-        TCPPort: $('#txtTCPPort').val(),
-        RoomTemperature: $('#txtRoomTemp').val(),
-        ScreenRotation: $('#ddlScreenRotation option:selected').val(),
-        DeleteFileSystem:$('[name="formatOption"]:checked').val(),
-        DisplayClock: $('[name="displayClockOption"]:checked').val()
-    };
-    console.log(toSend);
-    $.ajax({
-        url: '/config/save',
-        data: toSend,
-        dataType: 'json',
-        success: function (data) {
-            $('#loadingBar').addClass('hidden');
-            setModalStatus(data.success);
-            if (!data.success) {
-                setModalError(data.error);
-            }
-            $('#loadingFooter').removeClass('hidden');
-        },
-        error: function () {
-            $('#loadingBar').addClass('hidden');
-            setModalStatus(false);
-            setModalError("Failed to submit changes to device.");
-            $('#loadingFooter').removeClass('hidden');
-        }
-
-    });
-});
-
-function setModalStatus(success) {
-    $('#status').html('<h2>' + (success ? '<span class=\"glyphicon glyphicon-ok-sign\" style=\"color:#5cb85c\"></span> Success!' : '<span class=\"glyphicon glyphicon-exclamation-sign\" style=\"color:#d9534f\"></span> Failed!') + '</h2>');
-}
-
-function clearModalStatus() {
-    setModalStatus("");
-}
-
-function setModalError(message) {
-    $('#errorMessage').html('<h3>' + message + '</h3>');
-}
-
-function clearModalError() {
-    setModalError("");
-}
-</script>
+<script src="/js/sysConfig.js" type="text/javascript"></script>
 </html>
 )=====";

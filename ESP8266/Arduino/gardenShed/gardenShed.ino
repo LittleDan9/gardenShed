@@ -46,6 +46,7 @@
   #include "HomeHTML.h"
   #include "WiFiConfigHTML.h"
   #include "SysConfigHTML.h"
+  #include "SysConfigJS.h"
   #include "ConditionsHTML.h"
   #include "AboutHTML.h"
   #include "FourOOneHTML.h"
@@ -58,6 +59,7 @@
   /*******************************************************/  
   #include "Liberation_Sqns_16.h"
   #include "URWGothicLDegree_30.h"
+  #include "URWGothicLDegree_14.h"
   #include "Digital7_40.h"
   #include "Digital7_14.h"
     
@@ -79,6 +81,11 @@
     char deviceLocation[30] = "New Location";
     int roomTemp = 70;
     bool displayClock = true;
+    bool displayDate = false;
+    int clockType = 0;
+    long clockColor = ILI9341_CYAN;
+    long clockBkgColor = ILI9341_BLACK;
+    bool leadingZero = true;
     long interval = 10000;
     int screenRotation = 1;
     char username[30] = "root";
@@ -96,6 +103,7 @@
   /*System Constants                                      */
   /*******************************************************/
   #define DEBUG true
+  #define CONFIG_DEBUG false
   #define RELAY_PIN D0
   int chipId = system_get_chip_id();
   ADC_MODE(ADC_VCC); //Allows polling of Supply Voltage
@@ -155,19 +163,17 @@
   /*******************************************************/ 
   #define MAX_FAIL_COUNT 10
   unsigned long lastTimeGetMillis = 0;
+  unsigned long lastThermostatMillis = 0;
+  unsigned long thermostatInterval = 30000; //(30 Seconds);
   int failCount = 0;
   
   bool isClock = false;
-  bool is7Segment = false;
-  bool showDate = false;
-
-  
-  bool reprintHourHand = false;
-  bool reprintMinHand = false;
+    
   float xCenter = (SCREEN_WIDTH/2.0);
-  float yCenter = (SCREEN_HEIGHT/2.0)-25;
+  float yCenter = (SCREEN_HEIGHT/2.0);
   int timeFontHeight = 30;
   int radius = ((SCREEN_HEIGHT-(timeFontHeight*3))/2)-5;
+  
   int curMin = -1;
   int curHour = -1;
   int curSec = -1;
@@ -226,6 +232,7 @@
   //Conditions 
   void printConditions();
   void setupScreenConditions();
+  void thermostatControl();
   
   //Clock
   bool getDateTime();
@@ -243,9 +250,9 @@
   void setup() { 
     //Setup Serial for debug
     pinMode(RELAY_PIN, OUTPUT); 
-    if(DEBUG){
-      Serial.begin(115200);
-      Serial.println("");
+    Serial.begin(115200);
+    Serial.println("");
+    if(DEBUG){      
       Serial.println("Garden Shed Conditions Server");
       Serial.println("ChipID:" + String(chipId));
     }
@@ -256,7 +263,7 @@
     dht.begin();
     tft.begin();
     
-    thermastatControl();            
+    thermostatControl();            
     
     runBootProcess();
 
@@ -271,10 +278,12 @@
   /*Loop Routine                                         */
   /*******************************************************/ 
   bool toggle = HIGH;
-  void loop(void) { 
-    thermastatControl();      
+  void loop(void) {     
     isConnected = WiFi.status() == WL_CONNECTED;
     unsigned long currentMillis = millis();    
+    if(currentMillis - lastThermostatMillis >= thermostatInterval){
+      thermostatControl();        
+    }    
     //Check for TCP Request or HTTP Request
     checkTCP();
     webServer.handleClient();
@@ -321,14 +330,32 @@
     }
   }
   /*******************************************************/ 
+  void thermostatControl(){
+    lastThermostatMillis = millis();
+    float temp = dht.readTemperature(true) - TEMP_OFFSET;
+    if(DEBUG){
+      Serial.println("Temp: " + String(temp));
+      Serial.println("Room Temp: " + String(sysConfig.roomTemp));
+    }
+    if(temp > sysConfig.roomTemp){
+      turnHeaterOff();
+    }else if(temp < sysConfig.roomTemp - 1){
+      turnHeaterOn();
+    }
+  }
+  
   void turnHeaterOn(){    
-    Serial.println("Turn On");    
-    digitalWrite(RELAY_PIN, LOW);
+    if(digitalRead(RELAY_PIN) != LOW){
+      if(DEBUG){Serial.println("Turn On");}
+      digitalWrite(RELAY_PIN, LOW);
+    }
   }
 
   void turnHeaterOff(){
-    Serial.println("Turn Off");
-    digitalWrite(RELAY_PIN, HIGH);
+    if(digitalRead(RELAY_PIN) != HIGH){
+      if(DEBUG){Serial.println("Turn Off");}
+      digitalWrite(RELAY_PIN, HIGH);
+    }
   }
 
 
@@ -454,9 +481,12 @@
     lastTimeGetMillis = millis();
 
     gDateTime.strDate   = root["date"].asString();
+    gDateTime.strDate  += ", ";
+    gDateTime.strDate  += root["year"].asString();
     gDateTime.strTime   = root["time"].asString();
     gDateTime.hours     = root["hr"];
     gDateTime.hours12   = gDateTime.hours > 12 ? gDateTime.hours - 12 : root["hr"];
+    gDateTime.hours12   = gDateTime.hours12 == 0 ? 12 : gDateTime.hours12;
     gDateTime.meridian  = gDateTime.hours > 12 ? "PM" : "AM";
     gDateTime.minutes   = root["min"];
     gDateTime.seconds   = root["sec"];
@@ -652,12 +682,16 @@
     webServer.on("/config", [](){
       sendHTML(SysConfigHTML);
     });
+    webServer.on("/js/sysConfig.js", [](){
+      sendJS(SysConfigJS);
+    });     
     webServer.on("/conditions", [](){
       sendHTML(ConditionsHTML);
     });    
     webServer.on("/about", [](){
       sendHTML(AboutHTML);
-    });    
+    }); 
+       
 
     //Data Post
     webServer.on("/wifi/save", wifiSaveRequest);
@@ -740,6 +774,11 @@
     JSON += "\"deviceName\":\"" + String(sysConfig.deviceName) + "\", ";
     JSON += "\"deviceLocation\":\"" + String(sysConfig.deviceLocation) + "\", ";
     JSON += "\"displayClock\":" + String(sysConfig.displayClock ? "true" : "false") + ", ";
+    JSON += "\"displayDate\":" + String(sysConfig.displayDate ? "true" : "false") + ", ";
+    JSON += "\"clockType\":" + String(sysConfig.clockType) + ", ";
+    JSON += "\"clockColor\":" + String(sysConfig.clockColor) + ", ";
+    JSON += "\"clockBackgroundColor\":" + String(sysConfig.clockBkgColor) + ", ";
+    JSON += "\"leadingZero\":" +  String(sysConfig.leadingZero ? "true" : "false") + ", ";
     JSON += "\"interval\":" + String(sysConfig.interval / 1000) + ", ";
     JSON += "\"screenRotation\":" + String(sysConfig.screenRotation) + ", ";
     JSON += "\"username\":\"" + String(sysConfig.username) + "\", ";
@@ -864,11 +903,65 @@
         }
       }  
 
+      if(webServer.argName(i) == "DisplayDate"){
+        bool curVal = sysConfig.displayDate;
+        if(webServer.arg(i) == "true")
+          sysConfig.displayDate = true;
+        else{
+          sysConfig.displayDate = false;
+        }
+        
+        if(curVal != sysConfig.displayDate)
+          updateScreen = true;
+      }        
+
       if(webServer.argName(i) == "RoomTemperature"){
         char temp[10];
         webServer.arg(i).toCharArray(temp, 10);
         sysConfig.roomTemp = atoi(temp);
-      }           
+      }     
+
+      if(webServer.argName(i) == "ClockType"){
+        int curVal = sysConfig.clockType;
+        char temp[10];
+        webServer.arg(i).toCharArray(temp, 10);
+        sysConfig.clockType = atoi(temp);
+
+        if(curVal != sysConfig.clockType)
+          updateScreen = true;
+      }  
+
+      if(webServer.argName(i) == "ClockColor"){
+        long curVal = sysConfig.clockColor;
+        char temp[16];
+        webServer.arg(i).toCharArray(temp, 10);
+        sysConfig.clockColor = atol(temp);
+
+        if(curVal != sysConfig.clockColor)
+          updateScreen = true;
+      }     
+
+      if(webServer.argName(i) == "ClockBackgroundColor"){
+        long curVal = sysConfig.clockBkgColor;
+        char temp[16];
+        webServer.arg(i).toCharArray(temp, 10);
+        sysConfig.clockBkgColor = atol(temp);
+
+        if(curVal != sysConfig.clockBkgColor)
+          updateScreen = true;
+      }    
+
+      if(webServer.argName(i) == "LeadingZero"){
+        bool curVal = sysConfig.leadingZero;
+        if(webServer.arg(i) == "true")
+          sysConfig.leadingZero = true;
+        else{
+          sysConfig.leadingZero = false;
+        }
+        
+        if(curVal != sysConfig.leadingZero)
+          updateScreen = true;
+      }                                 
     }
 
     if(updateScreen){
@@ -889,12 +982,18 @@
       webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");      
     }
 
-    if(DEBUG){
+    if(CONFIG_DEBUG){
+      Serial.println("Config Recevied");
       Serial.println("Size of Sys Config: " + String(sizeof(sysConfig)));
       Serial.println("Device Name: " + String(sysConfig.deviceName));
       Serial.println("Device Location: " + String(sysConfig.deviceLocation));
       Serial.println("Room Temperature: " + String(sysConfig.roomTemp));
       Serial.println("Display Clock: " + String(sysConfig.displayClock));
+      Serial.println("Clock Time: " + String(sysConfig.clockType));
+      Serial.println("Display Date: " + String(sysConfig.displayDate));
+      Serial.println("Clock Color: " + String(sysConfig.clockColor));
+      Serial.println("Clock Background Color: " + String(sysConfig.clockBkgColor));
+      Serial.println("Leading Zero: " + String(sysConfig.leadingZero));
       Serial.println("Interval: " + String(sysConfig.interval));
       Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
       Serial.println("Username: " + String(sysConfig.username));
@@ -1005,6 +1104,19 @@
     for(unsigned int t = 0; t < sizeof(sysConfig.displayClock); t++)
       EEPROM.write(startAddress++, *((bool*)&sysConfig.displayClock + t));
 
+    for(unsigned int t = 0; t < sizeof(sysConfig.displayDate); t++)
+      EEPROM.write(startAddress++, *((bool*)&sysConfig.displayDate + t));      
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.clockType); t++)
+      EEPROM.write(startAddress++, *((int*)&sysConfig.clockType + t));                               
+
+    EEPROMWriteLong(sysConfig.clockColor, startAddress);
+    
+    EEPROMWriteLong(sysConfig.clockBkgColor, startAddress); 
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.leadingZero); t++)
+      EEPROM.write(startAddress++, *((bool*)&sysConfig.leadingZero + t));       
+    
     EEPROMWriteLong(sysConfig.interval, startAddress);
     
     for(unsigned int t = 0; t < sizeof(sysConfig.screenRotation); t++)
@@ -1026,39 +1138,37 @@
     EEPROM.commit();
     EEPROM.end();
         
-    if(DEBUG){Serial.println("Write Sys Config: " + String(writeSuccess));}
+    if(CONFIG_DEBUG){
+      Serial.println("System Config Write");
+      Serial.println("Write Sys Config: " + String(writeSuccess));
+      Serial.println("Size of Sys Config: " + String(sizeof(sysConfig)));
+      Serial.println("Device Name: " + String(sysConfig.deviceName));
+      Serial.println("Device Location: " + String(sysConfig.deviceLocation));
+      Serial.println("Room Temperature: " + String(sysConfig.roomTemp));
+      Serial.println("Display Clock: " + String(sysConfig.displayClock));
+      Serial.println("Clock Time: " + String(sysConfig.clockType));
+      Serial.println("Display Date: " + String(sysConfig.displayDate));
+      Serial.println("Clock Color: " + String(sysConfig.clockColor));
+      Serial.println("Clock Background Color: " + String(sysConfig.clockBkgColor));
+      Serial.println("Leading Zero: " + String(sysConfig.leadingZero));
+      Serial.println("Interval: " + String(sysConfig.interval));
+      Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
+      Serial.println("Username: " + String(sysConfig.username));
+      Serial.println("Password: " + String(sysConfig.password));
+      Serial.println("HTTP Port: " + String(sysConfig.httpPort));
+      Serial.println("TCP Port: " + String(sysConfig.tcpPort));
+      Serial.println("Delete File System: " + String(sysConfig.deleteFileSystem));
+    }         
     return writeSuccess;    
-  }
-  
-  bool saveSysConfig(bool displayClock, long interval, String username, String password, unsigned int httpPort, unsigned int tcpPort, String deviceName, String deviceLocation, int roomTemp){
-    
-    sysConfig.displayClock = displayClock;
-    if(interval > 1000)
-      sysConfig.interval = interval;
-    if(deviceName.length() > 0)
-      deviceName.toCharArray(sysConfig.username, sizeof(sysConfig.deviceName));
-    if(deviceLocation.length() > 0)
-      deviceLocation.toCharArray(sysConfig.deviceLocation, sizeof(sysConfig.deviceLocation));
-    if(username.length() > 0)
-      username.toCharArray(sysConfig.username, sizeof(sysConfig.username));
-    if(password.length() > 0)
-      password.toCharArray(sysConfig.password, sizeof(sysConfig.password));      
-    if(httpPort > 0)
-       sysConfig.httpPort = httpPort;
-    if(tcpPort > 0 )
-      sysConfig.tcpPort = tcpPort;
-    if(roomTemp > 0)
-      sysConfig.roomTemp = roomTemp;
-    
-    return saveSysConfig();
   }
 
   bool loadSysConfig(){   
     EEPROM.begin(512);
     delay(10);       
-
-    Serial.println("Load Sys Config");
-    Serial.println(sizeof(WiFiConfig) + sizeof(sysConfig));
+    if(DEBUG){
+      Serial.println("Load Sys Config");
+      Serial.println(sizeof(WiFiConfig) + sizeof(sysConfig));
+    }
     
     int startAddress = sysAddressStart;
 
@@ -1073,6 +1183,19 @@
 
     for(unsigned int t = 0; t < sizeof(sysConfig.displayClock); t++)
       *((bool*)&sysConfig.displayClock + t) = EEPROM.read(startAddress++);
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.displayDate); t++)
+      *((bool*)&sysConfig.displayDate + t) = EEPROM.read(startAddress++);      
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.clockType); t++)
+      *((int*)&sysConfig.clockType + t) = EEPROM.read(startAddress++);   
+
+    sysConfig.clockColor = EEPROMReadLong(startAddress);  
+    
+    sysConfig.clockBkgColor = EEPROMReadLong(startAddress);  
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.leadingZero); t++)
+      *((bool*)&sysConfig.leadingZero + t) = EEPROM.read(startAddress++);    
 
     sysConfig.interval = EEPROMReadLong(startAddress);
 
@@ -1095,12 +1218,18 @@
     EEPROM.end();
     
 
-    if(DEBUG){
+    if(CONFIG_DEBUG){
+      Serial.println("System Config Load");
       Serial.println("Size of Sys Config: " + String(sizeof(sysConfig)));
       Serial.println("Device Name: " + String(sysConfig.deviceName));
       Serial.println("Room Temperature: " + String(sysConfig.roomTemp));
       Serial.println("Device Location: " + String(sysConfig.deviceLocation));
       Serial.println("Display Clock: " + String(sysConfig.displayClock));
+      Serial.println("Clock Type: " + String(sysConfig.clockType));
+      Serial.println("Clock Color: " + String(sysConfig.clockColor));
+      Serial.println("Clock Background Color: " + String(sysConfig.clockBkgColor));
+      Serial.println("Leading Zero: " + String(sysConfig.leadingZero));      
+      Serial.println("Display Clock: " + String(sysConfig.displayDate));      
       Serial.println("Interval: " + String(sysConfig.interval));
       Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
       Serial.println("Username: " + String(sysConfig.username));
@@ -1137,18 +1266,7 @@
   
   /*******************************************************/
   /*Print conditions from the DHT22 Sensor to the screen */
-  /*******************************************************/ 
-  void thermastatControl(){
-    float temp = dht.readTemperature(true) - TEMP_OFFSET;
-    Serial.println("Temp: " + String(temp));
-    Serial.println("Room Temp: " + String(sysConfig.roomTemp));
-    if(temp > sysConfig.roomTemp){
-      turnHeaterOff();
-    }else if(temp < sysConfig.roomTemp - 1){
-      turnHeaterOn();
-    }
-  }
-  
+  /*******************************************************/  
   void printConditions(){
     //Only do a screen refresh when necessary
     float temp = dht.readTemperature(true);
@@ -1174,52 +1292,69 @@
   /*******************************************************/
   /*Print Date / Time from remote server                 */
   /*******************************************************/   
-  void printDateTime(){        
-    eraseNotification(); 
-    if(is7Segment){
+  void printDateTime(){
+    if(sysConfig.clockType == 1){
       if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
-        tft.setFont(&URWGothicLDegree30pt8b );
         curHour = gDateTime.hours12;
         curMin = gDateTime.minutes;
-        String h = gDateTime.hours12   > 9 ? String(gDateTime.hours12)   : "0" + String(gDateTime.hours12);
+        String h = "";
+        if(sysConfig.leadingZero)
+          h = gDateTime.hours12  > 9 ? String(gDateTime.hours12) : "0" + String(gDateTime.hours12);
+        else
+          h = String(gDateTime.hours12);
+          
         String m = gDateTime.minutes > 9 ? String(gDateTime.minutes) : "0" + String(gDateTime.minutes);
         String result = h + ":" + m + " " + gDateTime.meridian;
-        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+20, result);
+        tft.setFont(&digital_740pt8b );
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+10, result);
       }
 
-      if(!gDateTime.strDate.equals(curStrDate) && showDate){
+      if(!gDateTime.strDate.equals(curStrDate) && sysConfig.displayDate){
         curStrDate = gDateTime.strDate;
         tft.setFont(&digital_714pt8b );
-        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-10, gDateTime.strDate);
+        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-60, gDateTime.strDate);
       }
-    }else{
-      if(!gDateTime.strDate.equals(curStrDate) && showDate){
+    }
+    
+    if(sysConfig.clockType == 0){
+      //Serial.println("Date Check");
+      if(!gDateTime.strDate.equals(curStrDate) && sysConfig.displayDate){
         curStrDate = gDateTime.strDate;
-        tft.fillRect(0,0, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
-        ui.drawString(SCREEN_WIDTH/2, timeFontHeight+10, gDateTime.strDate);      
+        tft.setFont(&URWGothicLDegree14pt8b);
+        ui.drawString(SCREEN_WIDTH/2, 28, gDateTime.strDate);
+        tft.setFont(&URWGothicLDegree30pt8b);
       }
-  
+
+      //Serial.println("Print Start Time");
       if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
         tft.fillRect(0, SCREEN_HEIGHT-timeFontHeight, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
-        ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-15, gDateTime.strTime);  
+        //-16
+        int printY = SCREEN_HEIGHT;
+        if(sysConfig.displayDate)
+          printY -= 4;
+        else
+          printY -= 16;
+          
+        ui.drawString(SCREEN_WIDTH/2, printY, gDateTime.strTime);  
       }
-      
+
+      //Serial.println("Draw Hour");
       if(gDateTime.hours12 != curHour){
         curHour = gDateTime.hours12;
         drawHour(gDateTime.hours, gDateTime.minutes, true);
       }
-  
+
+      //Serial.println("Draw Minute");
       if(gDateTime.minutes != curMin){
         curMin = gDateTime.minutes;
         drawMinute(gDateTime.minutes, gDateTime.seconds, true);
       }
-  
+
+      //Serial.println("Draw Second");
       if(gDateTime.seconds != curSec){
         curSec = gDateTime.seconds;
         drawSecond(gDateTime.seconds);
       }
-      
-      tft.fillCircle(xCenter, yCenter, 4, GFX_ORANGE);
     }
     printNotification();
   }
@@ -1299,7 +1434,8 @@
     currentHumid = -99;
     tft.setFont(&URWGothicLDegree30pt8b );
     ui.setTextAlignment(LEFT);
-    tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+    //tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+    ui.setTextColor(GFX_ORANGE, ILI9341_BLACK);
     
     //Clear the Screen of the progress indicator prep for conditions
     tft.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ILI9341_BLACK);
@@ -1324,19 +1460,28 @@
   /*******************************************************/
   /* Prepare the screen for displaying the Date/Time     */
   /*******************************************************/
-  void setupScreenClock(){
+  void setupScreenClock(){    
     curStrDate = "NA";
     curHour = -1;
     curMin = -1;
     curSec = -1;
     ui.setTextAlignment(CENTER);
+    if(sysConfig.clockType == 1){
+      tft.fillScreen(sysConfig.clockBkgColor);
+      tft.setFont(&digital_740pt8b);
+      ui.setTextColor(sysConfig.clockColor, sysConfig.clockBkgColor);
+      //tft.setTextColor(sysConfig.clockColor, sysConfig.clockBkgColor);
+    }
     
-    if(is7Segment){
-      tft.setFont(&digital_740pt8b );
-      tft.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
-    }else{
+    if(sysConfig.clockType == 0) {
+      if(sysConfig.displayDate){
+        yCenter = (SCREEN_HEIGHT/2.0) -10; 
+      }else{
+        yCenter = (SCREEN_HEIGHT/2.0) -25; 
+      }      
       tft.setFont(&URWGothicLDegree30pt8b );
-      tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+      ui.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+      //tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
       
       //Draw the clock perimiter.
       //tft.drawCircle(xCenter, yCenter, radius, GFX_ORANGE);

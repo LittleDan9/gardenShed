@@ -30,7 +30,7 @@ const char HomeHTML[] PROGMEM = R"=====(
             $('#errorMessage').html("");
             $('#loadingFooter').addClass('hidden');
             $('#loadingBar').removeClass('hidden');
-            $('#processingModal').modal('show');
+            $('#processingModal').modal({backdrop: 'static', keyboard: false, show: true});
         }
 
         function hideLoading() {
