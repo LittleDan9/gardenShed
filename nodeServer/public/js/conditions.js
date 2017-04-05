@@ -7,7 +7,7 @@ function getShedConditions(){
             rotateGlyph = setInterval(function(){$('#btnRefreshGlyph').rotate()}, 100)
         },
         method: 'GET',
-        url: '/Conditions/2',
+        url: '/Conditions/1',
         dataType: 'JSON',
         success: function(data){
             if(!data || data.status < 0){
@@ -58,13 +58,13 @@ function getShedConditions(){
 function getExtConditions(){
     $.ajax({
         method: 'GET',
-        url: 'http://api.wunderground.com/api/a75da485666047dd/geolookup/conditions/q/pws:KORPORTL166.json',
+        url: 'http://api.wunderground.com/api/a75da485666047dd/geolookup/conditions/q/pws:KORPORTL758.json',
         dataType: 'JSON',
         success: function(data){
             //console.log(data);
             if(data.current_observation)
             {
-                $('#extStationID').html('<a href="https://www.wunderground.com/cgi-bin/findweather/getForecast?query=pws:KORPORTL166&MR=1&apiref=cd49dbb7619f6522">' + data.current_observation.station_id + '</a>');
+                $('#extStationID').html('<a target="_new" href="https://www.wunderground.com/cgi-bin/findweather/getForecast?query=pws:KORPORTL758&MR=1&apiref=cd49dbb7619f6522">' + data.current_observation.station_id + '</a>');
                 getDateTimeString(data.current_observation.observation_time_rfc822, function(dteString){
                     $('#extObservationTime').html(dteString);
                 });
@@ -80,10 +80,10 @@ function getExtConditions(){
                     iconClass = result[0].wiIcon;
 
                 $('#extCondIcon').addClass(iconClass);
-                $('#extTemp').html(data.current_observation.feelslike_f + '&deg;');
-                $('#extHumid').html(data.current_observation.relative_humidity);
+                $('#extTemp').html(data.current_observation.temp_f + '&deg;');
+		        $('#extFeelsLike').html(Number(data.current_observation.feelslike_f) + '&deg;');                
+		        $('#extHumid').html(data.current_observation.relative_humidity);
                 $('#extWind').html(data.current_observation.wind_string);
-
                 $('#outside').removeClass('hidden');
                 $('#wuLogo').removeClass('hidden');
             }

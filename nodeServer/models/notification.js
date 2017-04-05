@@ -196,6 +196,7 @@ var getNotifications = function getNotificiations(callback){
 
                 var notifications = new Array();
                 for(i=0, len = rows.length; i < len; i++){
+		    console.log(rows.length);
                     notifications.push(new notification(rows[i].NotificationID, 
                                               rows[i].CompareValue, 
                                               rows[i].Created, 

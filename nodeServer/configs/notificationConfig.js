@@ -7,15 +7,15 @@
  * Comment: This maybe better served stored in the DB... This works for now.
 /*************************************************************************************************************/
 const smtpConfig = {
-    host: 'SMTP_HOST',
-    port: 000,
-    secure: false,
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
-        user: 'SMTP_USER_ID',
-        pass: 'SMTP_PASSWORD'
+        user: 'gardenshed@littlerichele.com',
+        pass: 'lkcqmqvhuqbltxje'
     }
 }
-const fromEmail = "FROM_EMAIL";
+const fromEmail = "gardenshed@littlerichele.com";
 
 module.exports = {
     smtp : smtpConfig,
