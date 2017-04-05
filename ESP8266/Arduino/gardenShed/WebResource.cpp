@@ -28,21 +28,21 @@ void WebResource::downloadFile(String url, String filename) {
 }
 
 void WebResource::downloadFile(String url, String filename, ProgressCallback progressCallback) {    
-    Serial.println("Downloading " + url + " and saving as " + filename);
+    //Serial.println("Downloading " + url + " and saving as " + filename);
 
     if (SPIFFS.exists(filename) == true) {
-      Serial.println("File already exists. Skipping");
+      //Serial.println("File already exists. Skipping");
       return;
     }
     // wait for WiFi connection
     if((_wifiMulti.run() == WL_CONNECTED)) {
         HTTPClient http;
 
-        Serial.print("[HTTP] begin...\n");
+        //Serial.print("[HTTP] begin...\n");
 
         // configure server and url
         http.begin(url);
-        Serial.print("[HTTP] GET...\n");
+        //Serial.print("[HTTP] GET...\n");
         // start connection and send HTTP header
         int httpCode = http.GET();
         if(httpCode > 0) {
@@ -53,7 +53,7 @@ void WebResource::downloadFile(String url, String filename, ProgressCallback pro
                 return;
             }
             // HTTP header has been send and Server response header has been handled
-            Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+            //Serial.printf("[HTTP] GET... code: %d\n", httpCode);
 
             // file found at server
             if(httpCode == HTTP_CODE_OK) {
@@ -88,8 +88,8 @@ void WebResource::downloadFile(String url, String filename, ProgressCallback pro
                     delay(1);
                 }
 
-                Serial.println();
-                Serial.print("[HTTP] connection closed or file end.\n");
+                //Serial.println();
+                //Serial.print("[HTTP] connection closed or file end.\n");
 
             }
             f.close();
