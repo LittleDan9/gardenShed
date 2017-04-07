@@ -24,7 +24,7 @@ var timeString = function timeStringFromDate(d){
     var mins = d.getMinutes();
     var tString = (hour == 0 ? '12' : (hour > 12 ? (hour-12) : hour).toString()) + ':' + 
                   (mins < 10 ? '0' + mins.toString() : mins.toString()) + ' ' + 
-                  (hour > 12 ? 'PM' : 'AM');
+                  (hour >= 12 ? 'PM' : 'AM');
     return tString;
 }
 
