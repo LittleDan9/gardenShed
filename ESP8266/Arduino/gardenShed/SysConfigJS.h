@@ -88,7 +88,10 @@ $(function () {
                     }                    
                 }      
                 $('[name="leadingZeroOption"]').prop('checked', false);   
-                $('[name="leadingZeroOption"][value="' + result.leadingZero + '"]').prop('checked', true);       
+                $('[name="leadingZeroOption"][value="' + result.leadingZero + '"]').prop('checked', true); 
+                $('[name="TwentyFourHourOption"]').prop('checked', false);   
+                $('[name="TwentyFourHourOption"][value="' + result.twentyFourHour + '"]').prop('checked', true);                       
+                result.twentyFourHour ? $('#divLeadingZero').collapse('hide') : $('#divLeadingZero').collapse('show');                
                 $('#txtInterval').val(result.interval);
                 $('#ddlScreenRotation option[value="' + result.screenRotation + '"]').prop("selected", true);
                 $('#txtUsername').val(result.username);
@@ -107,7 +110,9 @@ $(function () {
         }
     });
 });
-
+$('[name="TwentyFourHourOption"]').on('change', function(){
+    $('input[name="TwentyFourHourOption"]:checked').val() == 'true' ? $('#divLeadingZero').collapse('hide') : $('#divLeadingZero').collapse('show');
+});
 $('#formatWarning').on('mouseover', function(){
     $('#formatWarning').popover('show');
 });
@@ -145,7 +150,8 @@ $('#btnSave').on('click', function(){
         DeleteFileSystem:$('[name="formatOption"]:checked').val(),
         DisplayClock: $('[name="displayClockOption"]:checked').val(),
         DisplayDate: $('[name="displayDateOption"]:checked').val(),
-        LeadingZero: $('[name="leadingZeroOption"]:checked').val()
+        LeadingZero: $('[name="leadingZeroOption"]:checked').val(),
+        TwentyFourHour: $('[name="TwentyFourHourOption"]:checked').val(),
     };
     console.log(toSend);
     $.ajax({

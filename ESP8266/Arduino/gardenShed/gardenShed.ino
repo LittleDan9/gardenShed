@@ -78,7 +78,7 @@
   int sysAddressStart = sizeof(wifiConfig); 
   struct SysConfig{
     char deviceName[30] = "New Device";
-    char deviceLocation[30] = "New Location";
+    char deviceLocation[30] = "New Location";   
     int roomTemp = 70;
     bool displayClock = true;
     bool displayDate = false;
@@ -86,19 +86,45 @@
     long clockColor = ILI9341_CYAN;
     long clockBkgColor = ILI9341_BLACK;
     bool leadingZero = true;
+    bool twentyFourHour = false;
     long interval = 10000;
     int screenRotation = 1;
     char username[30] = "root";
     char password[30] = "esp8266";
     long httpPort = 80;
     long tcpPort = 4210;
-    bool deleteFileSystem = false;
-    //Raspberry Pi Stuff        
+    bool deleteFileSystem = false;    
   };
+
+//  struct ExternalFile{
+//    char *url;
+//    char *mimeType;
+//    char *path;
+//  };
+//
+//  struct HttpResources {
+//    ExternalFile bootStrapCSS{
+//      "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css",
+//      "text/css",
+//      "/css/",
+//    };
+//    ExternalFile bootStrapJS{
+//      "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js",
+//      "application/js",
+//      "/js/",
+//    };
+//    ExternalFile jQuery{
+//      "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js",
+//      "application/js",
+//      "/js/",
+//    };           
+//  };
+
+  
   SysConfig sysConfig;
 
   #define MAX_LOGIN_ATTEMPTS 3
-  int loginAttempts = 0;
+  int loginAttempts = 0;  
   /*******************************************************/
   /*System Constants                                      */
   /*******************************************************/
@@ -164,6 +190,7 @@
   #define MAX_FAIL_COUNT 10
   unsigned long lastTimeGetMillis = 0;
   unsigned long lastThermostatMillis = 0;
+  unsigned long lastTempReadMillis = 0;
   unsigned long thermostatInterval = 30000; //(30 Seconds);
   int failCount = 0;
   
@@ -301,6 +328,7 @@
             setupScreenClock();          
           }else{ //Is Clock - Setup Conditions
             isClock = false;
+            lastTempReadMillis = 0;
             eraseScreen();
             setupScreenConditions();
           }
@@ -319,7 +347,8 @@
     } else { //Not Connected
       if(isClock){
         //If the clock was displaying, we should end the clock and go to conditions
-        isClock = false;        
+        isClock = false;   
+        lastTempReadMillis = 0;
         eraseScreen();
         setupScreenConditions();        
       }
@@ -697,6 +726,9 @@
     webServer.on("/wifi/save", wifiSaveRequest);
     webServer.on("/config/save", configSaveRequest);
 
+    //Handle Files
+    //webServer.on("/upload", HTTP_POST, [](){ webServer.send(200, "text/plain", ""); }, handleFileUpload);
+
     //API URLs
     webServer.on("/api/getNetworks", getNetworksJSON);
     webServer.on("/api/getNetworkSettings", getNetworkSettingsJSON);
@@ -779,6 +811,7 @@
     JSON += "\"clockColor\":" + String(sysConfig.clockColor) + ", ";
     JSON += "\"clockBackgroundColor\":" + String(sysConfig.clockBkgColor) + ", ";
     JSON += "\"leadingZero\":" +  String(sysConfig.leadingZero ? "true" : "false") + ", ";
+    JSON += "\"twentyFourHour\":" + String(sysConfig.twentyFourHour ? "true" : "false") + ", ";
     JSON += "\"interval\":" + String(sysConfig.interval / 1000) + ", ";
     JSON += "\"screenRotation\":" + String(sysConfig.screenRotation) + ", ";
     JSON += "\"username\":\"" + String(sysConfig.username) + "\", ";
@@ -818,6 +851,27 @@
       return;      
      webServer.send(200, "application/javascript", JS);   
   }   
+
+//File fsUploadFile;
+//  void handleFileUpload(){
+//   if(webServer.uri() != "/upload") return;
+//   HTTPUpload& upload = webServer.upload();
+//    if(upload.status == UPLOAD_FILE_START){
+//      String filename = upload.filename;
+//      if(!filename.startsWith("/")) filename = "/"+filename;
+//      Serial.print("handleFileUpload Name: "); Serial.println(filename);
+//      fsUploadFile = SPIFFS.open(filename, "w");
+//      filename = String();
+//    } else if(upload.status == UPLOAD_FILE_WRITE){
+//      //Serial.print("handleFileUpload Data: "); Serial.println(upload.currentSize);
+//      if(fsUploadFile)
+//        fsUploadFile.write(upload.buf, upload.currentSize);
+//    } else if(upload.status == UPLOAD_FILE_END){
+//      if(fsUploadFile)
+//        fsUploadFile.close();
+//      Serial.print("handleFileUpload Size: "); Serial.println(upload.totalSize);
+//    }
+//}
 
    bool isHTTPAuthorized(){
     if(!webServer.authenticate(sysConfig.username, sysConfig.password))
@@ -961,8 +1015,20 @@
         
         if(curVal != sysConfig.leadingZero)
           updateScreen = true;
+      }
+
+      if(webServer.argName(i) == "TwentyFourHour"){
+        bool curVal = sysConfig.twentyFourHour;
+        if(webServer.arg(i) == "true")
+          sysConfig.twentyFourHour = true;
+        else{
+          sysConfig.twentyFourHour = false;
+        }
+        
+        if(curVal != sysConfig.twentyFourHour)
+          updateScreen = true;
       }                                 
-    }
+    }    
 
     if(updateScreen){
       eraseScreen();
@@ -994,6 +1060,7 @@
       Serial.println("Clock Color: " + String(sysConfig.clockColor));
       Serial.println("Clock Background Color: " + String(sysConfig.clockBkgColor));
       Serial.println("Leading Zero: " + String(sysConfig.leadingZero));
+      Serial.println("24 Hour: " + String(sysConfig.twentyFourHour));
       Serial.println("Interval: " + String(sysConfig.interval));
       Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
       Serial.println("Username: " + String(sysConfig.username));
@@ -1115,7 +1182,10 @@
     EEPROMWriteLong(sysConfig.clockBkgColor, startAddress); 
 
     for(unsigned int t = 0; t < sizeof(sysConfig.leadingZero); t++)
-      EEPROM.write(startAddress++, *((bool*)&sysConfig.leadingZero + t));       
+      EEPROM.write(startAddress++, *((bool*)&sysConfig.leadingZero + t));    
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.twentyFourHour); t++)
+      EEPROM.write(startAddress++, *((bool*)&sysConfig.twentyFourHour + t));             
     
     EEPROMWriteLong(sysConfig.interval, startAddress);
     
@@ -1151,6 +1221,7 @@
       Serial.println("Clock Color: " + String(sysConfig.clockColor));
       Serial.println("Clock Background Color: " + String(sysConfig.clockBkgColor));
       Serial.println("Leading Zero: " + String(sysConfig.leadingZero));
+      Serial.println("24 Hour: " + String(sysConfig.twentyFourHour));
       Serial.println("Interval: " + String(sysConfig.interval));
       Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
       Serial.println("Username: " + String(sysConfig.username));
@@ -1195,7 +1266,10 @@
     sysConfig.clockBkgColor = EEPROMReadLong(startAddress);  
 
     for(unsigned int t = 0; t < sizeof(sysConfig.leadingZero); t++)
-      *((bool*)&sysConfig.leadingZero + t) = EEPROM.read(startAddress++);    
+      *((bool*)&sysConfig.leadingZero + t) = EEPROM.read(startAddress++);  
+
+    for(unsigned int t = 0; t < sizeof(sysConfig.twentyFourHour); t++)
+      *((bool*)&sysConfig.twentyFourHour + t) = EEPROM.read(startAddress++);          
 
     sysConfig.interval = EEPROMReadLong(startAddress);
 
@@ -1229,6 +1303,7 @@
       Serial.println("Clock Color: " + String(sysConfig.clockColor));
       Serial.println("Clock Background Color: " + String(sysConfig.clockBkgColor));
       Serial.println("Leading Zero: " + String(sysConfig.leadingZero));      
+      Serial.println("24 Hour: " + String(sysConfig.twentyFourHour));            
       Serial.println("Display Clock: " + String(sysConfig.displayDate));      
       Serial.println("Interval: " + String(sysConfig.interval));
       Serial.println("Screen Rotation: " + String(sysConfig.screenRotation));
@@ -1268,47 +1343,61 @@
   /*Print conditions from the DHT22 Sensor to the screen */
   /*******************************************************/  
   void printConditions(){
-    //Only do a screen refresh when necessary
-    float temp = dht.readTemperature(true);
-    //The temperature in the enclouser gets a little warmer due to the electronics.
-    temp -= TEMP_OFFSET;  
-    
-    if(temp != currentTemp && !isnan(temp)){
-      currentTemp = temp;
-      //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
-      tft.fillRect(textOffset, middleOfTop - halfFontHeight - 16, textBoxWidth, (fontHeight+22), ILI9341_BLACK);     
-      ui.drawString(textOffset, middleOfTop + halfFontHeight, String(temp) + "°");           
-    }
-
-    //Only do a screen refresh when necessary
-    float humid = dht.readHumidity();
-    if(humid != currentHumid && !isnan(humid)){
-      currentHumid = humid;
-      //Erase existing Humidity and Write New Humidity. +2 on font height to covet offset of the '%' sign
-      tft.fillRect(textOffset, middleOfBottom - halfFontHeight, textBoxWidth, (fontHeight+2), ILI9341_BLACK);     
-      ui.drawString(textOffset, middleOfBottom + halfFontHeight, String(humid) + "%");           
+    //Read temp only evert 5 Seconds
+    unsigned long currentMillis = millis();
+    if(currentMillis - lastTempReadMillis > 5000)
+    {
+      Serial.println("Read Temp");
+      lastTempReadMillis = currentMillis;
+      //Only do a screen refresh when necessary
+      float temp = dht.readTemperature(true);
+      //The temperature in the enclouser gets a little warmer due to the electronics.
+      temp -= TEMP_OFFSET;  
+      
+      if(temp != currentTemp && !isnan(temp)){
+        currentTemp = temp;
+        //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
+        tft.fillRect(textOffset, middleOfTop - halfFontHeight - 16, textBoxWidth, (fontHeight+22), ILI9341_BLACK);     
+        ui.drawString(textOffset, middleOfTop + halfFontHeight, String(temp) + "°");           
+      }
+  
+      //Only do a screen refresh when necessary
+      float humid = dht.readHumidity();
+      if(humid != currentHumid && !isnan(humid)){
+        currentHumid = humid;
+        //Erase existing Humidity and Write New Humidity. +2 on font height to covet offset of the '%' sign
+        tft.fillRect(textOffset, middleOfBottom - halfFontHeight, textBoxWidth, (fontHeight+2), ILI9341_BLACK);     
+        ui.drawString(textOffset, middleOfBottom + halfFontHeight, String(humid) + "%");           
+      }
     }
   }
   /*******************************************************/
   /*Print Date / Time from remote server                 */
   /*******************************************************/   
   void printDateTime(){
-    if(sysConfig.clockType == 1){
-      if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
+    if(sysConfig.clockType == 1 && (gDateTime.hours12 != curHour || gDateTime.minutes != curMin)){
         curHour = gDateTime.hours12;
-        curMin = gDateTime.minutes;
+        curMin = gDateTime.minutes;      
+                    
         String h = "";
-        if(sysConfig.leadingZero)
-          h = gDateTime.hours12  > 9 ? String(gDateTime.hours12) : "0" + String(gDateTime.hours12);
+        int hours = sysConfig.twentyFourHour ? gDateTime.hours : gDateTime.hours12;
+        if(sysConfig.leadingZero || sysConfig.twentyFourHour)
+          h = hours  > 9 ? String(hours) : "0" + String(hours);
         else
-          h = String(gDateTime.hours12);
-          
+          h = String(hours);
+        
         String m = gDateTime.minutes > 9 ? String(gDateTime.minutes) : "0" + String(gDateTime.minutes);
-        String result = h + ":" + m + " " + gDateTime.meridian;
-        tft.setFont(&digital_740pt8b );
+        String result = h + ":" + m;
+        
+        
+        if(!sysConfig.twentyFourHour)
+          result += " " + gDateTime.meridian;
+        
+        tft.setFont(&digital_740pt8b );      
+        tft.fillRect(0, ((SCREEN_HEIGHT/2)-50), SCREEN_WIDTH, 70, ILI9341_BLACK);
         ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+10, result);
-      }
-
+      
+      //Display Date
       if(!gDateTime.strDate.equals(curStrDate) && sysConfig.displayDate){
         curStrDate = gDateTime.strDate;
         tft.setFont(&digital_714pt8b );
@@ -1546,4 +1635,5 @@
       ui.drawProgressBar(10, 140, 300, 15, percentage, ILI9341_WHITE, ILI9341_GREEN);
     }
   }
+
   
