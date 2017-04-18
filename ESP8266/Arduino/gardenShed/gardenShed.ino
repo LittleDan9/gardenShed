@@ -96,7 +96,7 @@
   /*System Constants                                      */
   /*******************************************************/
   #define DEBUG true
-  #define CONFIG_DEBUG false
+  #define CONFIG_DEBUG true
   #define RELAY_PIN D0
   int chipId = system_get_chip_id();
   ADC_MODE(ADC_VCC); //Allows polling of Supply Voltage
@@ -129,7 +129,7 @@
   #if SCREEN_WIDTH > 128
     #define TEMP_OFFSET 8
   #else
-    #define TEMP_OFFSET 26
+    #define TEMP_OFFSET 25.7
   #endif
   DHT dht(DHTPIN, DHTTYPE);
   /*******************************************************/
@@ -1066,6 +1066,7 @@
     String hostname, ssid, password;
     if(!webServer.authenticate(sysConfig.username, sysConfig.password))
         return webServer.requestAuthentication();
+        
     for(int i = 0; i < webServer.args(); i++){
       if(webServer.argName(i) == "Hostname"){
         hostname = webServer.arg(i);
