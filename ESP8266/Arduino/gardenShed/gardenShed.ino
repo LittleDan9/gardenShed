@@ -30,7 +30,8 @@
   /*******************************************************/    
   #include "Adafruit_GFX.h"
   #include "Adafruit_ILI9341.h"
-  #include "GfxUi.h"
+  #include "TFT_ILI9163C.h"
+  #include "Gfxui.h"
 
   /*******************************************************/
   /*Resource Includes                                    */  
@@ -43,25 +44,16 @@
   /*******************************************************/
   /*HTML Includes                                        */
   /*******************************************************/
-  #include "HomeHTML.h"
-  #include "WiFiConfigHTML.h"
-  #include "SysConfigHTML.h"
-  #include "SysConfigJS.h"
-  #include "ConditionsHTML.h"
-  #include "AboutHTML.h"
-  #include "FourOOneHTML.h"
-  #include "JQuery.h"
-  #include "Bootstrap.h"
-  
+  #include "HTML.h"
+  #include "JavaScript.h"
+
   
   /*******************************************************/
   /*Font Includes                                        */
   /*******************************************************/  
-  #include "Liberation_Sqns_16.h"
-  #include "URWGothicLDegree_30.h"
-  #include "URWGothicLDegree_14.h"
-  #include "Digital7_40.h"
-  #include "Digital7_14.h"
+  #include "Liberation_Sans.h"
+  #include "URWGothicLDegree.h"  
+  #include "Digital7.h"
     
   /*******************************************************/
   /*Configurations                                       */
@@ -95,31 +87,6 @@
     long tcpPort = 4210;
     bool deleteFileSystem = false;    
   };
-
-//  struct ExternalFile{
-//    char *url;
-//    char *mimeType;
-//    char *path;
-//  };
-//
-//  struct HttpResources {
-//    ExternalFile bootStrapCSS{
-//      "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css",
-//      "text/css",
-//      "/css/",
-//    };
-//    ExternalFile bootStrapJS{
-//      "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js",
-//      "application/js",
-//      "/js/",
-//    };
-//    ExternalFile jQuery{
-//      "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js",
-//      "application/js",
-//      "/js/",
-//    };           
-//  };
-
   
   SysConfig sysConfig;
 
@@ -139,17 +106,31 @@
   #define TFT_DC  D1
   #define TFT_CS  D2
   #define GFX_ORANGE 0xF4A8
-  #define SCREEN_WIDTH 320
-  #define SCREEN_HEIGHT 240
-  Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
-  GfxUi ui = GfxUi(&tft);
+  #define SCREEN_WIDTH 128
+  #define SCREEN_HEIGHT 128
+  #define DISPLAY_IC 9163
+
+  #if DISPLAY_IC == 9163
+        TFT_ILI9163C tft9163C = TFT_ILI9163C(TFT_CS, TFT_DC);
+        GfxUi ui = GfxUi(&tft9163C);
+        Adafruit_GFX* tft = &tft9163C;
+  #elif DISPLAY_IC == 9341
+        Adafruit_ILI9341 tft9341 = Adafruit_ILI9341(TFT_CS, TFT_DC);
+        GfxUi ui = GfxUi(&tft9341);      
+        Adafruit_GFX* tft = &tft9341;    
+  #endif
+  
   
   /*******************************************************/
   /*DHT Sensor                                           */
   /*******************************************************/
   #define DHTPIN  D3
   #define DHTTYPE DHT22
-  #define TEMP_OFFSET 8
+  #if SCREEN_WIDTH > 128
+    #define TEMP_OFFSET 8
+  #else
+    #define TEMP_OFFSET 26
+  #endif
   DHT dht(DHTPIN, DHTTYPE);
   /*******************************************************/
   /*TCP / HTTP Server                                    */
@@ -169,16 +150,26 @@
   /*******************************************************/
   /*Layout Heplper                                       */
   /*******************************************************/
-  #define iconBoxWidth 56
-  #define iconOffset 20
-  #define fontHeight 46
+  #if SCREEN_WIDTH > 128
+    #define ICON_BOX_WIDTH 56
+    #define ICON_OFFSET 20  
+    #define TEXT_OFFSET 10
+    #define FONT_HEIGHT 46
+  #else
+    #define ICON_BOX_WIDTH 0
+    #define ICON_OFFSET 0
+    #define TEXT_OFFSET 6
+    #define FONT_HEIGHT 26
+  #endif
+  
+  
   
   //Offset the text 10px from the icons.
-  int textOffset = (iconOffset + iconBoxWidth + 10);
+  int textOffset = (ICON_OFFSET + ICON_BOX_WIDTH + TEXT_OFFSET);
   int middleOfTop = (SCREEN_HEIGHT/4)*1;
   int middleOfBottom = (SCREEN_HEIGHT/4)*3;
   int textBoxWidth = (SCREEN_WIDTH-textOffset)-6;
-  int halfFontHeight = fontHeight/2;  
+  int halfFontHeight = FONT_HEIGHT/2;  
   float currentTemp = 0.00;
   float currentHumid = 0.00;
   bool isNotification = false;
@@ -273,7 +264,7 @@
   void addSeconds();
   /*******************************************************/
   /*Init Routine                                         */
-  /*******************************************************/ 
+  /*******************************************************/   
   void setup() { 
     //Setup Serial for debug
     pinMode(RELAY_PIN, OUTPUT); 
@@ -288,7 +279,7 @@
     loadSysConfig();
     //Initialize the DHT Sensor Object and TFT Object
     dht.begin();
-    tft.begin();
+    tft->begin();
     
     thermostatControl();            
     
@@ -561,7 +552,7 @@
     yHour = (yCenter + (hFraction * (yHour - yCenter)));
     if(erase)
       eraseHand(gDateTime.curHourHand);    
-    tft.drawLine(xCenter, yCenter, xHour, yHour, ILI9341_WHITE);
+    tft->drawLine(xCenter, yCenter, xHour, yHour, ILI9341_WHITE);
     gDateTime.curHourHand = {xHour, yHour};
   }
 
@@ -578,7 +569,7 @@
       eraseHand(gDateTime.curMinHand);
     
     drawHour(gDateTime.hours, gDateTime.minutes, true);
-    tft.drawLine(xCenter, yCenter, xMin, yMin, ILI9341_CYAN);  
+    tft->drawLine(xCenter, yCenter, xMin, yMin, ILI9341_CYAN);  
     gDateTime.curMinHand = {xMin, yMin};
   }
 
@@ -596,11 +587,11 @@
     
     drawHour(gDateTime.hours, gDateTime.minutes, false);
 
-    tft.drawLine(xCenter, yCenter, xSec, ySec, ILI9341_RED);
+    tft->drawLine(xCenter, yCenter, xSec, ySec, ILI9341_RED);
   }
 
   void eraseHand(Point point){
-    tft.drawLine(xCenter, yCenter, point.x, point.y, ILI9341_BLACK);
+    tft->drawLine(xCenter, yCenter, point.x, point.y, ILI9341_BLACK);
     drawClockFace();
   }
   
@@ -608,8 +599,8 @@
   /*Setup and Configure WiFi Connection                  */
   /*******************************************************/ 
   void setupWiFi(){
-    WiFi.disconnect();
-    WiFi.softAPdisconnect(true);
+    //WiFi.disconnect();
+    //WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_STA);
     loadWiFiConfig();
     if(DEBUG){Serial.println("Setting Up WiFi");}
@@ -666,7 +657,7 @@
       // wait for a client to connect
       if (client)
       {
-        //tft.println("\n[Client connected]");
+        //tft->println("\n[Client connected]");
         String data = "";
         while (client.connected())
         {
@@ -691,7 +682,7 @@
         delay(1);
         // close the connection:
         client.stop();
-        //tft.println("[Client disonnected]");
+        //tft->println("[Client disonnected]");
       }   
     }  
   }
@@ -936,7 +927,7 @@
         int temp = webServer.arg(i).toInt();
         if(temp != sysConfig.screenRotation){
           sysConfig.screenRotation = temp;
-          tft.setRotation(sysConfig.screenRotation);
+          tft->setRotation(sysConfig.screenRotation);
           updateScreen = true;
         }
       }
@@ -1341,34 +1332,54 @@
   
   /*******************************************************/
   /*Print conditions from the DHT22 Sensor to the screen */
-  /*******************************************************/  
+  /*******************************************************/
   void printConditions(){
     //Read temp only evert 5 Seconds
     unsigned long currentMillis = millis();
     if(currentMillis - lastTempReadMillis > 5000)
-    {
-      Serial.println("Read Temp");
+    { 
+      Serial.println("Read Temp");   
       lastTempReadMillis = currentMillis;
       //Only do a screen refresh when necessary
       float temp = dht.readTemperature(true);
       //The temperature in the enclouser gets a little warmer due to the electronics.
-      temp -= TEMP_OFFSET;  
-      
-      if(temp != currentTemp && !isnan(temp)){
-        currentTemp = temp;
-        //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
-        tft.fillRect(textOffset, middleOfTop - halfFontHeight - 16, textBoxWidth, (fontHeight+22), ILI9341_BLACK);     
-        ui.drawString(textOffset, middleOfTop + halfFontHeight, String(temp) + "°");           
+      temp -= TEMP_OFFSET;
+            
+      if(SCREEN_WIDTH > 128){
+        float humid = dht.readHumidity();
+        printConditionsLarge(temp, humid);
+      }else{
+        printConditionsSmall(temp);
       }
+    }
+  }
+  void printConditionsSmall(float temp){
+    tft->setFont(&URWGothicLBook18pt8b);
+    ui.setTextAlignment(CENTER);
+    
+    if(temp != currentTemp && !isnan(temp)){
+      currentTemp = temp;
+      //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
+      tft->fillRect(6, 6, SCREEN_WIDTH-12, SCREEN_HEIGHT-12, ILI9341_BLACK);     
+      ui.drawString((SCREEN_WIDTH/2), (SCREEN_HEIGHT/2)+10, String(temp) + "°");
+    }
+  }
   
-      //Only do a screen refresh when necessary
-      float humid = dht.readHumidity();
-      if(humid != currentHumid && !isnan(humid)){
-        currentHumid = humid;
-        //Erase existing Humidity and Write New Humidity. +2 on font height to covet offset of the '%' sign
-        tft.fillRect(textOffset, middleOfBottom - halfFontHeight, textBoxWidth, (fontHeight+2), ILI9341_BLACK);     
-        ui.drawString(textOffset, middleOfBottom + halfFontHeight, String(humid) + "%");           
-      }
+  void printConditionsLarge(float temp, float humid){
+    tft->setFont(&URWGothicLDegree30pt8b );
+    if(temp != currentTemp && !isnan(temp)){
+      currentTemp = temp;
+      //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
+      tft->fillRect(textOffset, middleOfTop - halfFontHeight - 16, textBoxWidth, (FONT_HEIGHT+22), ILI9341_BLACK);     
+      ui.drawString(textOffset, middleOfTop + halfFontHeight, String(temp) + "°");           
+    }
+    
+    //Only do a screen refresh when necessary
+    if(humid != currentHumid && !isnan(humid)){
+      currentHumid = humid;
+      //Erase existing Humidity and Write New Humidity. +2 on font height to covet offset of the '%' sign
+      tft->fillRect(textOffset, middleOfBottom - halfFontHeight, textBoxWidth, (FONT_HEIGHT+2), ILI9341_BLACK);     
+      ui.drawString(textOffset, middleOfBottom + halfFontHeight, String(humid) + "%");           
     }
   }
   /*******************************************************/
@@ -1393,14 +1404,14 @@
         if(!sysConfig.twentyFourHour)
           result += " " + gDateTime.meridian;
         
-        tft.setFont(&digital_740pt8b );      
-        tft.fillRect(0, ((SCREEN_HEIGHT/2)-50), SCREEN_WIDTH, 70, ILI9341_BLACK);
+        tft->setFont(&digital_740pt8b );      
+        tft->fillRect(0, ((SCREEN_HEIGHT/2)-50), SCREEN_WIDTH, 70, ILI9341_BLACK);
         ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+10, result);
       
       //Display Date
       if(!gDateTime.strDate.equals(curStrDate) && sysConfig.displayDate){
         curStrDate = gDateTime.strDate;
-        tft.setFont(&digital_714pt8b );
+        tft->setFont(&digital_714pt8b );
         ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT-60, gDateTime.strDate);
       }
     }
@@ -1409,14 +1420,14 @@
       //Serial.println("Date Check");
       if(!gDateTime.strDate.equals(curStrDate) && sysConfig.displayDate){
         curStrDate = gDateTime.strDate;
-        tft.setFont(&URWGothicLDegree14pt8b);
+        tft->setFont(&URWGothicLDegree14pt8b);
         ui.drawString(SCREEN_WIDTH/2, 28, gDateTime.strDate);
-        tft.setFont(&URWGothicLDegree30pt8b);
+        tft->setFont(&URWGothicLDegree30pt8b);
       }
 
       //Serial.println("Print Start Time");
       if(gDateTime.hours12 != curHour || gDateTime.minutes != curMin){
-        tft.fillRect(0, SCREEN_HEIGHT-timeFontHeight, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
+        tft->fillRect(0, SCREEN_HEIGHT-timeFontHeight, SCREEN_WIDTH, timeFontHeight, ILI9341_BLACK);
         //-16
         int printY = SCREEN_HEIGHT;
         if(sysConfig.displayDate)
@@ -1453,17 +1464,17 @@
   /*******************************************************/  
   void printNotification(){
     if(isNotification){
-        tft.setFont(&Liberation_Sans_16);
+        tft->setFont(&Liberation_Sans_16);
         ui.setTextAlignment(CENTER);
       if(isClock) {
         ui.drawString(SCREEN_WIDTH/2, 12, txtNotify);
         ui.setTextAlignment(CENTER);
-        tft.setFont(&URWGothicLDegree30pt8b);
+        tft->setFont(&URWGothicLDegree30pt8b);
       }else{
         ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+6, txtNotify);
         //Restore Layout
         ui.setTextAlignment(LEFT);
-        tft.setFont(&URWGothicLDegree30pt8b );                 
+        tft->setFont(&URWGothicLDegree30pt8b );                 
       }        
       isNotification = false;
       txtNotify = "";
@@ -1473,11 +1484,11 @@
   void eraseNotification(){
     int nFontHeight = 20;
     if(isClock) {
-      tft.fillRect(0, 0, SCREEN_WIDTH, nFontHeight, ILI9341_BLACK);
+      tft->fillRect(0, 0, SCREEN_WIDTH, nFontHeight, ILI9341_BLACK);
     }else{
       //ui.drawString(SCREEN_WIDTH/2, SCREEN_HEIGHT/2+6, txtNotify);
-      tft.fillRect(0, 0, SCREEN_WIDTH, nFontHeight, ILI9341_BLACK);
-      tft.drawLine(20, (SCREEN_HEIGHT/2), (SCREEN_WIDTH-20), (SCREEN_HEIGHT/2), GFX_ORANGE);
+      tft->fillRect(0, 0, SCREEN_WIDTH, nFontHeight, ILI9341_BLACK);
+      tft->drawLine(20, (SCREEN_HEIGHT/2), (SCREEN_WIDTH-20), (SCREEN_HEIGHT/2), GFX_ORANGE);
     }        
   }
   
@@ -1485,13 +1496,25 @@
   /*Print conditions from the DHT22 Sensor to the screen */
   /*******************************************************/
   void drawProgress(uint8_t percentage, String text) {
+    int barWidth = SCREEN_WIDTH - 20;
+    int barHeight = 15;
     ui.setTextAlignment(CENTER);
     ui.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
-    //Clear existing text
-    tft.fillRect(0, 80, 320, 35, ILI9341_BLACK);
-    ui.drawString(160, 110, text);
-    ui.drawProgressBar(10, 120, 300, 15, percentage, ILI9341_WHITE, ILI9341_BLUE);
-    yield();
+    if(SCREEN_WIDTH == 128 && SCREEN_HEIGHT == 128){
+      int imgHeight = 100;
+      tft->fillRect(0, imgHeight, SCREEN_WIDTH, SCREEN_HEIGHT-imgHeight, ILI9341_BLACK);
+      ui.drawString((SCREEN_WIDTH/2), imgHeight+10, text);
+      ui.drawProgressBar(10, SCREEN_HEIGHT-barHeight, barWidth, barHeight, percentage, ILI9341_WHITE, ILI9341_BLUE);
+      yield();
+      delay(500);
+    }else{       
+      //Clear existing text
+      tft->fillRect(0, 0, SCREEN_WIDTH, (SCREEN_HEIGHT/2)-(barHeight/2), ILI9341_BLACK);
+      //Draw the Text
+      ui.drawString((SCREEN_WIDTH/2), (SCREEN_HEIGHT/2)-barHeight, text);
+      //Draw the progress bar
+      ui.drawProgressBar(10, (SCREEN_HEIGHT/2)-(barHeight/2), barWidth, barHeight, percentage, ILI9341_WHITE, ILI9341_BLUE);
+    }
   }
   
   /*******************************************************/
@@ -1500,50 +1523,66 @@
   void eraseScreen(){
     txtNotify = "";
     isNotification = false;
-    tft.fillScreen(ILI9341_BLACK);
+    tft->fillScreen(ILI9341_BLACK);
   }
   
   /*******************************************************/
   /*Prepare the screen for boot sequence                 */
   /*******************************************************/
   void setupScreenBoot(){
+    tft->setRotation(sysConfig.screenRotation);
+    tft->setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    
     eraseScreen();
-    tft.setFont(&Liberation_Sans_16);
-    tft.setRotation(sysConfig.screenRotation);
-    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-    //tft.setTextSize(2);
+    switch(SCREEN_WIDTH){
+      case 240:
+      case 320:
+        tft->setFont(&Liberation_Sans_16);
+        break;
+      case 128:
+        SPIFFS.begin(); 
+        ui.drawBmp("chicken.bmp", 0, 0);
+        yield();
+        delay(2000);
+        SPIFFS.end();      
+        tft->setFont(&Liberation_Sans_8);
+        break;
+      default:
+        tft->setFont(&Liberation_Sans_16);
+        break; 
+    }
   }
 
   /*******************************************************/
   /* Prepare the screen for displaying the condition     */
   /*******************************************************/
   void setupScreenConditions(){  
-    SPIFFS.begin(); 
     currentTemp = -99;
     currentHumid = -99;
-    tft.setFont(&URWGothicLDegree30pt8b );
     ui.setTextAlignment(LEFT);
-    //tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+    //tft->setTextColor(GFX_ORANGE, ILI9341_BLACK);
     ui.setTextColor(GFX_ORANGE, ILI9341_BLACK);
-    
     //Clear the Screen of the progress indicator prep for conditions
-    tft.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ILI9341_BLACK);
+    tft->fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ILI9341_BLACK);
     //Boarder Around Screen; Offset by 3 px;
-    tft.drawRect(3, 3, (SCREEN_WIDTH-6), (SCREEN_HEIGHT-6), GFX_ORANGE);
-    //Line arcoss the middle of the screen
-    tft.drawLine(20, (SCREEN_HEIGHT/2), (SCREEN_WIDTH-20), (SCREEN_HEIGHT/2), GFX_ORANGE);
-    //Midpoint of the top half of the screen minus half the hight of the image. X-Offset by 10px for good looks.
-    int imageHeight = 77;
-    int imageWidth = 36;    
-    int xOffSet = ((iconBoxWidth/2) - (imageWidth/2)) + iconOffset;
-    ui.drawBmp("temperature.bmp", xOffSet, ((SCREEN_HEIGHT/4)*1)-(imageHeight/2));
-    
-    //Midpoint of the bottm half of the screen minus half the height of the image. X-Offset by 10px for good looks.   
-    imageHeight = 67;
-    imageWidth = 53;    
-    xOffSet = ((iconBoxWidth/2) - (imageWidth/2)) + iconOffset;
-    ui.drawBmp("humidity.bmp", xOffSet, ((SCREEN_HEIGHT/4)*3)-(imageHeight/2)); //53x67
-    SPIFFS.end();
+    tft->drawRect(3, 3, (SCREEN_WIDTH-6), (SCREEN_HEIGHT-6), GFX_ORANGE);
+    if(SCREEN_WIDTH > 128){      
+      //Line arcoss the middle of the screen
+      tft->drawLine(20, (SCREEN_HEIGHT/2), (SCREEN_WIDTH-20), (SCREEN_HEIGHT/2), GFX_ORANGE);
+      //Midpoint of the top half of the screen minus half the hight of the image. X-Offset by 10px for good looks. 
+      SPIFFS.begin(); 
+      int imageHeight = 77;
+      int imageWidth = 36;    
+      int xOffSet = ((ICON_BOX_WIDTH/2) - (imageWidth/2)) + ICON_OFFSET;
+      ui.drawBmp("temperature.bmp", xOffSet, ((SCREEN_HEIGHT/4)*1)-(imageHeight/2));
+      
+      //Midpoint of the bottm half of the screen minus half the height of the image. X-Offset by 10px for good looks.   
+      imageHeight = 67;
+      imageWidth = 53;    
+      xOffSet = ((ICON_BOX_WIDTH/2) - (imageWidth/2)) + ICON_OFFSET;
+      ui.drawBmp("humidity.bmp", xOffSet, ((SCREEN_HEIGHT/4)*3)-(imageHeight/2)); //53x67
+      SPIFFS.end();
+    }
   }
 
   /*******************************************************/
@@ -1556,10 +1595,10 @@
     curSec = -1;
     ui.setTextAlignment(CENTER);
     if(sysConfig.clockType == 1){
-      tft.fillScreen(sysConfig.clockBkgColor);
-      tft.setFont(&digital_740pt8b);
+      tft->fillScreen(sysConfig.clockBkgColor);
+      tft->setFont(&digital_740pt8b);
       ui.setTextColor(sysConfig.clockColor, sysConfig.clockBkgColor);
-      //tft.setTextColor(sysConfig.clockColor, sysConfig.clockBkgColor);
+      //tft->setTextColor(sysConfig.clockColor, sysConfig.clockBkgColor);
     }
     
     if(sysConfig.clockType == 0) {
@@ -1568,16 +1607,16 @@
       }else{
         yCenter = (SCREEN_HEIGHT/2.0) -25; 
       }      
-      tft.setFont(&URWGothicLDegree30pt8b );
+      tft->setFont(&URWGothicLDegree30pt8b );
       ui.setTextColor(GFX_ORANGE, ILI9341_BLACK);
-      //tft.setTextColor(GFX_ORANGE, ILI9341_BLACK);
+      //tft->setTextColor(GFX_ORANGE, ILI9341_BLACK);
       
       //Draw the clock perimiter.
-      //tft.drawCircle(xCenter, yCenter, radius, GFX_ORANGE);
+      //tft->drawCircle(xCenter, yCenter, radius, GFX_ORANGE);
       //Large Circle
-      tft.fillCircle(xCenter, yCenter, radius+4, GFX_ORANGE);
+      tft->fillCircle(xCenter, yCenter, radius+4, GFX_ORANGE);
       //Inner Face
-      tft.fillCircle(xCenter, yCenter, radius, ILI9341_BLACK);      
+      tft->fillCircle(xCenter, yCenter, radius, ILI9341_BLACK);      
       drawClockFace();          
     }
   }
@@ -1604,7 +1643,7 @@
 
         float xEnd = (xOuter + (fraction * (xCenter-xOuter)));
         float yEnd = (yOuter + (fraction * (yCenter-yOuter)));
-        tft.drawLine(xOuter, yOuter, xEnd, yEnd, GFX_ORANGE);  
+        tft->drawLine(xOuter, yOuter, xEnd, yEnd, GFX_ORANGE);  
     }
   }
 
@@ -1613,18 +1652,27 @@
   /*******************************************************/  
   void downloadResources(uint8_t percentage) {
     SPIFFS.begin();
-    //char id[5];
-    for (int i = 0; i < 21; i++) {
-      //sprintf(id, "%02d", i);
-      //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
-      webResource.downloadFile("http://littlerichele.com/images/temperature-mini-crop.bmp", "temperature.bmp", _downloadCallback);
+    if(SCREEN_WIDTH > 128 || SCREEN_HEIGHT > 128){
+      //char id[5];
+      for (int i = 0; i < 21; i++) {
+        //sprintf(id, "%02d", i);
+        //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
+        webResource.downloadFile("http://littlerichele.com/images/temperature-mini-crop.bmp", "temperature.bmp", _downloadCallback);
+      }
+      for (int i = 0; i < 21; i++) {
+        //sprintf(id, "%02d", i);
+        //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
+        webResource.downloadFile("http://littlerichele.com/images/humidity-mini-crop.bmp", "humidity.bmp", _downloadCallback);
+      }
+    } else {
+      for (int i = 0; i < 21; i++) {
+        //sprintf(id, "%02d", i);
+        //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
+        webResource.downloadFile("http://littlerichele.com/images/chicken.bmp", "chicken.bmp", _downloadCallback);
+      }
     }
-    for (int i = 0; i < 21; i++) {
-      //sprintf(id, "%02d", i);
-      //tft.fillRect(0, 120, 240, 40, ILI9341_BLACK);
-      webResource.downloadFile("http://littlerichele.com/images/humidity-mini-crop.bmp", "humidity.bmp", _downloadCallback);
-    }
-    SPIFFS.end();   
+        
+    SPIFFS.end();    
   }
 
   void downloadCallback(String filename, int16_t bytesDownloaded, int16_t bytesTotal) {

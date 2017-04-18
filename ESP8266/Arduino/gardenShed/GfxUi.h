@@ -19,6 +19,8 @@ See more at http://blog.squix.ch
 */
 
 #include <Adafruit_ILI9341.h>
+ #include "Adafruit_GFX.h"
+#include "TFT_ILI9163C.h"
 #include <FS.h>
 
 #ifndef _GFX_UI_H
@@ -34,6 +36,7 @@ enum TextAlignment {
 class GfxUi {
   public:
     GfxUi(Adafruit_ILI9341 * tft);
+    GfxUi(TFT_ILI9163C * tft);
     void drawString(int x, int y, char *text);
     void drawString(int x, int y, String text);
     void setTextAlignment(TextAlignment alignment);
@@ -43,7 +46,9 @@ class GfxUi {
     void drawProgressBar(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t percentage, uint16_t frameColor, uint16_t barColor);
 
   private:
-    Adafruit_ILI9341 * _tft;
+    Adafruit_ILI9341 * _tft9341;
+    TFT_ILI9163C * _tft9163C;
+    Adafruit_GFX * _tft;
     TextAlignment _alignment = LEFT;
     uint16_t _textColor;
     uint16_t _backgroundColor;

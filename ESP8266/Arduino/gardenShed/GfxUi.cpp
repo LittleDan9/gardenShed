@@ -21,8 +21,15 @@ See more at http://blog.squix.ch
 #include "GfxUi.h"
 
 GfxUi::GfxUi(Adafruit_ILI9341 *tft) {
-  _tft = tft;
+    _tft9341 = tft;
+    _tft = _tft9341;
 }
+
+GfxUi::GfxUi(TFT_ILI9163C *tft) {
+   _tft9163C = tft;
+  _tft = _tft9163C;
+}
+
 
 void GfxUi::drawString(int x, int y, char *text) {
   int16_t x1, y1;
