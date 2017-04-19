@@ -46,7 +46,6 @@
   /*******************************************************/
   #include "HTML.h"
   #include "JavaScript.h"
-
   
   /*******************************************************/
   /*Font Includes                                        */
@@ -129,7 +128,7 @@
   #if SCREEN_WIDTH > 128
     #define TEMP_OFFSET 8
   #else
-    #define TEMP_OFFSET 25.7
+    #define TEMP_OFFSET 18.62
   #endif
   DHT dht(DHTPIN, DHTTYPE);
   /*******************************************************/
@@ -1504,8 +1503,8 @@
     if(SCREEN_WIDTH == 128 && SCREEN_HEIGHT == 128){
       int imgHeight = 100;
       tft->fillRect(0, imgHeight, SCREEN_WIDTH, SCREEN_HEIGHT-imgHeight, ILI9341_BLACK);
-      ui.drawString((SCREEN_WIDTH/2), imgHeight+10, text);
-      ui.drawProgressBar(10, SCREEN_HEIGHT-barHeight, barWidth, barHeight, percentage, ILI9341_WHITE, ILI9341_BLUE);
+      ui.drawString((SCREEN_WIDTH/2), imgHeight+7, text);
+      ui.drawProgressBar(10, SCREEN_HEIGHT-barHeight-3, barWidth, barHeight, percentage, ILI9341_WHITE, ILI9341_BLUE);
       yield();
       delay(500);
     }else{       
