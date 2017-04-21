@@ -178,6 +178,7 @@ if(cluster.isMaster){
 		if (!req.body) return res.sendStatus(400);
 		var temp = req.body.txtTemp;
 		var criteria = req.body.ddlCriteria;
+		var boardId = req.body.ddlBoard;
 		var isGreaterThan = false;
 		var isLessThan = false;
 		var isEqualTo = false;
@@ -186,7 +187,7 @@ if(cluster.isMaster){
 		if(criteria.indexOf("<") >= 0) isLessThan = true;
 		if(criteria.indexOf("=") >= 0) isEqualTo = true;
 
-		notifications.create(temp, isGreaterThan, isLessThan, isEqualTo, function(n){
+		notifications.create(temp, isGreaterThan, isLessThan, isEqualTo, boardId, function(n){
 			resp.send(n);
 		});
 	});

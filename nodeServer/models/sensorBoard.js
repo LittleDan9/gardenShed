@@ -69,7 +69,7 @@ var boards = function getBoards(callback){
                 throw err;
 
             sqlConn.query('SELECT * FROM tBoards WHERE isActive = 1', function(err, rows, fields){
-		console.log(rows);
+		//console.log(rows);
                 if(err)
                     throw err;
 
@@ -90,7 +90,7 @@ var boards = function getBoards(callback){
 
 var getBoard = function getBoard(boardId, callback){
     var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
-    console.log(boardId);
+    //console.log(boardId + "test");
     try{        
         sqlConn.connect(function(err){
             if(err)

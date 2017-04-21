@@ -35,19 +35,72 @@
                             </h1>
                         </div>
                         <div class="panel-body content">
-                            <div class="row">
+                            <div class="row" id="divConditions">
                                 <div class="col-sm-offset-1 col-sm-12 col-md-5">
                                     <div id="inside">
-                                        <h1>Conditions <button class="btn btn-default" id="btnRefreshShed"><span style="display:inline-block;" id="btnRefreshGlyph" class="glyphicon glyphicon-refresh"></span></button></h1>
+                                        <h1> Garden Shed 
+                                            <button class="btn btn-default" id="btnRefreshShed">
+                                                <span style="display:inline-block;" id="btnRefreshGlyph" class="glyphicon glyphicon-refresh"></span>
+                                            </button>
+                                        </h1>
                                         <div id="obsTimeDiv" style="font-size:14pt;">Observed on: <span id="observationTime"></span></div>
-                                        <h2><i class="icon wi wi-thermometer"></i><span><span class="hidden-xs hidden-sm">&nbsp;Temperature:</span>&nbsp;<span id="temp">Loading...</span></span></h2>
-                                        <h2><i class="icon wi wi-humidity"></i><span><span class="hidden-xs hidden-sm">&nbsp;Humidity:</span>&nbsp;<span id="humid">Loading...</span></span></h2>
+                                        <h2>
+                                            <i class="icon wi wi-thermometer"></i>
+                                            <span>
+                                                <span class="hidden-xs hidden-sm">&nbsp;Temperature:</span>&nbsp;
+                                                <span id="temp">Loading...</span>
+                                            </span>
+                                        </h2>
+                                        <h2>
+                                            <i class="icon wi wi-humidity"></i>
+                                            <span>
+                                                <span class="hidden-xs hidden-sm">&nbsp;Humidity:</span>&nbsp;
+                                                <span id="humid">Loading...</span>
+                                            </span>
+                                        </h2>
                                     </div>
-                                </div>
+                                </div>                                                                                            
                                 <div class="col-sm-12 col-md-5">
                            
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-offset-1 col-sm-12 col-md-10">
+                                    <hr class="orange">
+                                </div>
+                            </div>
+                            <div class="row" id="divConditions2">
+                                <div class="col-sm-offset-1 col-sm-12 col-md-5">
+                                    <div id="inside2">
+                                        <h1>Incubator
+                                            <button class="btn btn-default" id="btnRefreshShed2">
+                                                <span style="display:inline-block;" id="btnRefreshGlyph2" class="glyphicon glyphicon-refresh"></span>
+                                            </button>
+                                        </h1>
+                                        <div id="obsTimeDiv2" style="font-size:14pt;">Observed on: <span id="observationTime2"></span></div>
+                                        <h2>
+                                            <i class="icon wi wi-thermometer"></i>
+                                            <span>
+                                                <span class="hidden-xs hidden-sm">&nbsp;Temperature:</span>&nbsp;
+                                                <span id="temp2">Loading...</span>
+                                            </span>
+                                        </h2>
+                                        <!--
+                                        <h2>
+                                            <i class="icon wi wi-humidity"></i>
+                                            <span>
+                                                <span class="hidden-xs hidden-sm">&nbsp;Humidity:</span>&nbsp;
+                                                <span id="humid2">Loading...</span>
+                                            </span>
+                                        </h2>
+                                        -->
+                                    </div>
+                                </div>                                                                                            
+                                <div class="col-sm-12 col-md-5">
+                                    <span class="icon-chicken" style="font-size:12em;"></span> 
+                                </div>
+                            </div>
+                            <hr>                            
                             <div class="row" style="margin-top:40px;">
                                 <div class="col-sm-offset-1 col-sm-10">
                                     <div class="panel panel-info hidden" id="activePanel">
@@ -76,12 +129,19 @@
                                                         <label for="txtTemp" class="control-label">Criteria:</label>
                                                     </div>
                                                     <div class="form-group">
+                                                        <select name="ddlBoard" id="ddlBoard" class="form-control">
+                                                            <option value="-1">Select Location</option>
+                                                            <option value="1">Garden Shed</option>
+                                                            <option value="3">Chicken Incubator</option>
+                                                        </select>
+                                                    </div>                                                    
+                                                    <div class="form-group">
                                                         <select name="ddlCriteria" id="ddlCriteria" class="form-control">
                                                             <option value="-1">Select Criteria</option>
                                                             <option value=">=">Is Greater Than and Equal To (>=)</option>
-                                                            <option value="<=">Is Less Than and Equal To (<=)</option>                                                            
+                                                            <option value="<=">Is Less Than and Equal To (<=)</option>
                                                             <option value=">">Is Greater Than (>)</option>
-                                                            <option value="<">Is Less Than (<)</option>                                                            
+                                                            <option value="<">Is Less Than (<)</option>
                                                         </select>
                                                     </div>
                                                     <div class="form-group">
@@ -155,13 +215,15 @@
 
     $(function(){
         $('#btnRefreshGlyph').data("angle", 0);
+        $('#btnRefreshGlyph2').data("angle", 0);
         resizeHeader();
         getShedConditions();
+        getIncubatorConditions();
         getNotifications();
         getUsers();
         //Uncomment to show Outside Conditions on load.
         //getExtConditions();
-        setInterval(function(){getShedConditions();}, 60000 )
+        setInterval(function(){getShedConditions();getIncubatorConditions();}, 60000 )
         $('[data-toggle="popover"]').popover();
     });
 
@@ -173,6 +235,7 @@
     }
 
     $('#btnRefreshShed').on('click', function(){getShedConditions()});
+    $('#btnRefreshShed2').on('click', function(){getIncubatorConditions()});
 
     $('#showExtConditions').on('click', function(){
         if($('#outside').hasClass('hidden')){
@@ -201,7 +264,6 @@
                 if(data == undefined){
                     return;
                 }  
-                console.log(data);                
                 var areActive = jQuery.grep(data, function(item){
                     return(item.isActive == true);
                 });
@@ -267,6 +329,7 @@
                     //Add Remove Button
                     $alertDiv.append($('<span/>').attr('id', 'activeCompare' + i.toString()).html('<strong>' + logic + "</strong>&nbsp;"));
                     $alertDiv.append($('<span/>').attr('id', 'activeValue' + i.toString()).html('<strong>' + data[i].compareValue + '°F</strong>'));
+                    $alertDiv.append($('<span/>').html(' for <strong>' + data[i].boardName + '</strong>'))
                     $alertContainer.append($alertDiv);
                     //Add Create Button
                 }
@@ -353,6 +416,7 @@
                 getNotifications();
                 $('#txtTemp').val('');
                 $('#ddlCriteria').val(-1);
+                $('#ddlBoard').val(-1);
                 //console.log(data);
             },
             dataType: 'JSON'

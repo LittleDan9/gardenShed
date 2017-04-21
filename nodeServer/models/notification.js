@@ -3,8 +3,9 @@ var connInfo = require('../configs/mysqlConfig.js');
 var notifyConfig = require('../configs/notificationConfig.js');
 var user = require('./user.js');
 var nodemailer = require('nodemailer');
+var sensorBoards = require('./sensorBoard.js');
 
-var notification = function notification(notificationId, compareValue, created, isGreaterThan, isLessThan, isEqualTo, isActive, lastSent){
+var notification = function notification(notificationId, compareValue, created, isGreaterThan, isLessThan, isEqualTo, isActive, lastSent, boardId, boardName){
     this.notificationId = notificationId;
     this.compareValue = compareValue;
     this.created = created;
@@ -13,6 +14,8 @@ var notification = function notification(notificationId, compareValue, created, 
     this.isEqualTo = isEqualTo;
     this.isActive = isActive;
     this.lastSent = lastSent;
+    this.boardId = boardId;
+    this.boardName = boardName;
 }
 
 /*
@@ -47,7 +50,7 @@ notification.prototype.save = function(callback){
         sqlConn.connect(function(err){
             if(err)
                 throw err;
-            sqlConn.query("INSERT INTO tNotifications SET ?", {CompareValue: this.compareValue, isGreater: this.isGreater, isLessThan: this.isLessThan, isEqualTo: this.isEqualTo }, function(err, results){                        
+            sqlConn.query("INSERT INTO tNotifications SET ?", {CompareValue: this.compareValue, isGreater: this.isGreater, isLessThan: this.isLessThan, isEqualTo: this.isEqualTo, boardID: this.boardId }, function(err, results){                        
                 if(err)
                     throw err;
                 sqlConn.end();
@@ -80,15 +83,16 @@ notification.prototype.send = function(txtMessage, htmlMessage, forceSend, callb
     if(forceSend)
         console.log("Force Send initiated.");
     
-    var notificationId = this.notificationId
+    var notificationId = this.notificationId;
+    var notification = this;
     //Get Users who get notifications.
     user.getUsers(function(users){
         var transporter = nodemailer.createTransport(notifyConfig.smtp);
 
         var mailOptions = {
-            from : "Garden Shed <" + notifyConfig.fromEmail + ">",
+            from : notification.boardName + " <" + notifyConfig.fromEmail + ">",
             to : "",
-            subject : "Garden Shed Alert",
+            subject : notification.boardName + " Alert",
             text : txtMessage,
             html : htmlMessage
         }
@@ -156,7 +160,8 @@ var getNotification = function(notificationId, callback){
         sqlConn.connect(function(err){
             if(err)
                 throw err;
-            sqlConn.query('SELECT * FROM tNotifications WHERE NotificationID = ?', [NotificationId], function(err, rows, fields){
+            //sqlConn.query('SELECT * FROM tNotifications WHERE NotificationID = ?', [NotificationId], function(err, rows, fields){
+            sqlConn.query('SELECT tNotifications.*, tBoards.Name FROM tNotifications INNER JOIN tBoards ON tNotifications.BoardID = tBoards.BoardID WHERE NotificationID = ?', [NotificationId], function(err, rows, fields){                
                 if(err)
                     throw err;
                 //console.log(rows);
@@ -169,7 +174,9 @@ var getNotification = function(notificationId, callback){
                                               rows[0].isLessThan[0],
                                               rows[0].isEqualTo[0],
                                               rows[0].isActive[0],
-                                              rows[0].LastSent));
+                                              rows[0].LastSent),
+                                              rows[0].BoardID,
+                                              rows[0].Name);
                 }else{
                     callback(null);
                 }
@@ -190,13 +197,13 @@ var getNotifications = function getNotificiations(callback){
         sqlConn.connect(function(err){
             if(err)
                 throw err;
-            sqlConn.query('SELECT * FROM tNotifications', function(err, rows, fields){
+            sqlConn.query('SELECT tNotifications.*, tBoards.Name FROM tNotifications INNER JOIN tBoards on tNotifications.BoardID = tBoards.BoardID', function(err, rows, fields){
                 if(err)
                     throw err;
 
                 var notifications = new Array();
                 for(i=0, len = rows.length; i < len; i++){
-		    console.log(rows.length);
+		    //console.log(rows.length);
                     notifications.push(new notification(rows[i].NotificationID, 
                                               rows[i].CompareValue, 
                                               rows[i].Created, 
@@ -204,7 +211,9 @@ var getNotifications = function getNotificiations(callback){
                                               rows[i].isLessThan[0],
                                               rows[i].isEqualTo[0],
                                               rows[i].isActive[0],
-                                              rows[i].LastSent));
+                                              rows[i].LastSent,
+                                              rows[i].BoardID,
+                                              rows[i].Name));
                 }
                 //console.log(notifications);
                 callback(notifications);
@@ -217,7 +226,43 @@ var getNotifications = function getNotificiations(callback){
     }
 }
 
-var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo, callback){   
+var getNotificationsForBoard = function getNotificiations(boardId, callback){
+    //console.log("In getNotifications");
+    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    try{        
+        sqlConn.connect(function(err){
+            if(err)
+                throw err;
+            sqlConn.query('SELECT tNotifications.*, tBoards.Name FROM tNotifications INNER JOIN tBoards on tNotifications.BoardID = tBoards.BoardID WHERE tNotifications.BoardID = ?', [boardId], function(err, rows, fields){
+                if(err)
+                    throw err;
+
+                var notifications = new Array();
+                for(i=0, len = rows.length; i < len; i++){
+		    //console.log(rows.length);
+                    notifications.push(new notification(rows[i].NotificationID, 
+                                              rows[i].CompareValue, 
+                                              rows[i].Created, 
+                                              rows[i].isGreaterThan[0],
+                                              rows[i].isLessThan[0],
+                                              rows[i].isEqualTo[0],
+                                              rows[i].isActive[0],
+                                              rows[i].LastSent,
+                                              rows[i].BoardID,
+                                              rows[i].Name));
+                }
+                //console.log(notifications);
+                callback(notifications);
+                sqlConn.end();
+            });
+        });
+    }catch(err){
+        console.error(err);
+        sqlConn.destroy();
+    }
+}
+
+var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo, boardId, callback){   
     // console.log('Compare Value:' + compareValue);         
     // console.log('isGreaterThan:' + isGreaterThan);
     // console.log('isLessThan:' + isLessThan);
@@ -227,10 +272,10 @@ var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo,
         sqlConn.connect(function(err){
             if(err) throw err; 
         //Update the dabase with the new information
-        sqlConn.query('INSERT INTO tNotifications SET ?', {CompareValue: compareValue, isGreaterThan : isGreaterThan, isLessThan : isLessThan, isEqualTo: isEqualTo}, function(err, results){
+        sqlConn.query('INSERT INTO tNotifications SET ?', {CompareValue: compareValue, isGreaterThan : isGreaterThan, isLessThan : isLessThan, isEqualTo: isEqualTo, BoardID: boardId}, function(err, results){
             if(err) throw err;
             sqlConn.end();
-            callback(new notification(results.insertId, compareValue, new Date, isGreaterThan, isLessThan, isEqualTo, true));
+            callback(new notification(results.insertId, compareValue, new Date, isGreaterThan, isLessThan, isEqualTo, boardId, true));
             
         });
     });
@@ -258,5 +303,6 @@ module.exports = {
     create,
     delete: del,
     getNotification,
-    getNotifications
+    getNotifications,
+    getNotificationsForBoard
 };

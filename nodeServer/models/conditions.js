@@ -58,7 +58,7 @@ var conditionsByBoard = function(board, fromDB, callback){
                         sqlConn.connect();
                         var query = "SELECT Temperature, Humidity, Updated FROM tConditions WHERE BoardID = ? ORDER BY ConditionID DESC LIMIT 1"
                         sqlConn.query(query, [board.boardId], function(err, rows, fields){
-                            console.log(response.data.status);
+                            //console.log(response.data.status + "test");
                             if(err)
                                 throw err;
                             callback(new conditions(rows[0].Temperature, rows[0].Humidity, 0, rows[0].Updated, false));
