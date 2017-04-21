@@ -289,7 +289,7 @@
 #endif //#if defined(TEENSY3.x)
 
 
-void TFT_ILI9163C::begin(void) 
+void TFT_ILI9163C::begin(uint32_t freq) 
 {
 	sleep = 0;
 	_initError = 0b00000000;

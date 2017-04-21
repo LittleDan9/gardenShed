@@ -31,7 +31,7 @@ void WebResource::downloadFile(String url, String filename, ProgressCallback pro
     //Serial.println("Downloading " + url + " and saving as " + filename);
 
     if (SPIFFS.exists(filename) == true) {
-      //Serial.println("File already exists. Skipping");
+      Serial.println("File already exists. Skipping");
       return;
     }
     // wait for WiFi connection

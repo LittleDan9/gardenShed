@@ -17,7 +17,10 @@
   #endif  
   #include "ESP8266WiFi.h"
   #include "ESP8266mDNS.h"
-  #include "ESP8266WebServer.h"
+  //#include "ESP8266WebServer.h"
+
+  #include "ESPAsyncTCP.h"
+  #include "ESPAsyncWebServer.h"
   
   /*******************************************************/
   /*Sensor Includes                                      */  
@@ -84,12 +87,16 @@
     char password[30] = "esp8266";
     long httpPort = 80;
     long tcpPort = 4210;
-    bool deleteFileSystem = false;    
+    bool deleteFileSystem = false;
+    char displayDriver[10] = "ILI9341";
+    long displayWidth = 320;
+    long displayHeight = 240;    
   };
   
   SysConfig sysConfig;
 
   #define MAX_LOGIN_ATTEMPTS 3
+  #define MAX_SPIFFS_NAME_LEN 30
   int loginAttempts = 0;  
   /*******************************************************/
   /*System Constants                                      */
@@ -105,20 +112,21 @@
   #define TFT_DC  D1
   #define TFT_CS  D2
   #define GFX_ORANGE 0xF4A8
-  #define SCREEN_WIDTH 128
-  #define SCREEN_HEIGHT 128
-  #define DISPLAY_IC 9163
+  //#define DISPLAY_IC 9163
+  #define DISPLAY_IC 9341
 
   #if DISPLAY_IC == 9163
-        TFT_ILI9163C tft9163C = TFT_ILI9163C(TFT_CS, TFT_DC);
-        GfxUi ui = GfxUi(&tft9163C);
-        Adafruit_GFX* tft = &tft9163C;
+    #define SCREEN_WIDTH 128
+    #define SCREEN_HEIGHT 128  
+    TFT_ILI9163C tft9163C = TFT_ILI9163C(TFT_CS, TFT_DC);
+    Adafruit_GFX* tft = &tft9163C;
   #elif DISPLAY_IC == 9341
-        Adafruit_ILI9341 tft9341 = Adafruit_ILI9341(TFT_CS, TFT_DC);
-        GfxUi ui = GfxUi(&tft9341);      
-        Adafruit_GFX* tft = &tft9341;    
+    #define SCREEN_WIDTH 320
+    #define SCREEN_HEIGHT 240  
+    Adafruit_ILI9341 tft9341 = Adafruit_ILI9341(TFT_CS, TFT_DC);
+    Adafruit_GFX* tft = &tft9341;
   #endif
-  
+  GfxUi ui = GfxUi(tft);   
   
   /*******************************************************/
   /*DHT Sensor                                           */
@@ -128,14 +136,16 @@
   #if SCREEN_WIDTH > 128
     #define TEMP_OFFSET 8
   #else
-    #define TEMP_OFFSET 18.62
+    #define TEMP_OFFSET 16.62
   #endif
   DHT dht(DHTPIN, DHTTYPE);
   /*******************************************************/
   /*TCP / HTTP Server                                    */
   /*******************************************************/
   WiFiServer JSONServer(sysConfig.tcpPort);
-  ESP8266WebServer webServer(sysConfig.httpPort);
+  AsyncWebServer webServer(sysConfig.httpPort);
+  AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
+  AsyncEventSource events("/events"); // event source (Server-Sent events)  
   /*******************************************************/
   /*Downloader                                           */
   /*******************************************************/
@@ -169,8 +179,9 @@
   int middleOfBottom = (SCREEN_HEIGHT/4)*3;
   int textBoxWidth = (SCREEN_WIDTH-textOffset)-6;
   int halfFontHeight = FONT_HEIGHT/2;  
-  float currentTemp = 0.00;
-  float currentHumid = 0.00;
+  float currentTemp = -99.00;
+  float currentHumid = -99.00;
+  bool forceTempUpdate = true;
   bool isNotification = false;
   String txtNotify = "";
   
@@ -180,7 +191,7 @@
   #define MAX_FAIL_COUNT 10
   unsigned long lastTimeGetMillis = 0;
   unsigned long lastThermostatMillis = 0;
-  unsigned long lastTempReadMillis = 0;
+  unsigned long lastTempReadMillis = -5000;
   unsigned long thermostatInterval = 30000; //(30 Seconds);
   int failCount = 0;
   
@@ -277,12 +288,12 @@
     //saveSysConfig();
     loadSysConfig();
     //Initialize the DHT Sensor Object and TFT Object
+    SPIFFS.begin();
     dht.begin();
     tft->begin();
-    
-    thermostatControl();            
-    
+
     runBootProcess();
+    WiFi.scanNetworks(true);
 
     previousMillis = millis();
     //We will always start with condition. Being that this is the primary purpose.
@@ -303,7 +314,7 @@
     }    
     //Check for TCP Request or HTTP Request
     checkTCP();
-    webServer.handleClient();
+    //webServer.handleClient();
     //If we are not connected to a network, we need to setup the WiFi
     if(isConnected){
       //We must be connected
@@ -331,6 +342,10 @@
           printConditions();        
         }
       }else{
+        if(isClock){
+          eraseScreen();
+          setupScreenConditions();
+        }
         isClock = false;
         printConditions();
       }
@@ -347,18 +362,25 @@
       //Attempted to Connect
       setupWiFi();          
     }
+    yield();
   }
   /*******************************************************/ 
+  
   void thermostatControl(){
     lastThermostatMillis = millis();
-    float temp = dht.readTemperature(true) - TEMP_OFFSET;
+    
+    do{
+      delay(5);
+      currentTemp = dht.readTemperature(true) - TEMP_OFFSET;
+    } while (isnan(currentTemp));
+    
     if(DEBUG){
-      Serial.println("Temp: " + String(temp));
+      Serial.println("Temp: " + String(currentTemp));
       Serial.println("Room Temp: " + String(sysConfig.roomTemp));
     }
-    if(temp > sysConfig.roomTemp){
+    if(currentTemp > sysConfig.roomTemp){
       turnHeaterOff();
-    }else if(temp < sysConfig.roomTemp - 1){
+    }else if(currentTemp < sysConfig.roomTemp - 1){
       turnHeaterOn();
     }
   }
@@ -407,8 +429,7 @@
     
     //Start web server
     drawProgress(bootProgress += bootInterval, "Starting HTTP Server");
-    setupHTTP();
-    webServer.begin();
+    setupAsyncWebServer();
 
     if(sysConfig.deleteFileSystem){
       //We will need to uncomment the next three lines to erase the file system and redownload.
@@ -474,7 +495,6 @@
       }
     }
     timeClient.stop();
-    yield();
       
     if(JSON.length() <= 0){
       //This is not good, but we connected, so there is an issues on the server
@@ -666,7 +686,11 @@
             String line = client.readStringUntil('\r');
             if (line == "TH")
             {  
-              float temp = dht.readTemperature(true) - TEMP_OFFSET;
+              float temp =  dht.readTemperature(true) - TEMP_OFFSET;
+              while (isnan(temp)){ 
+                delay(10);
+                temp = dht.readTemperature(true) - TEMP_OFFSET;
+              }
               data = "{\"status\" : " + String(1) + ",\"conditions\" : {\"temp\" : \"" + temp + "\", \"humid\" : \"" + dht.readHumidity() + "\"}}";;
               break;
             }else{
@@ -685,86 +709,358 @@
       }   
     }  
   }
-
+    
   /*******************************************************/
   /*HTTP Server Configuration and Response Methods       */
-  /*******************************************************/ 
-  void setupHTTP(){ 
+  /*******************************************************/   
+  void onRequest(AsyncWebServerRequest *request){
+    String url = request->url();
+    url.toLowerCase();
 
-    //HTML URLs
-    webServer.on("/", [](){
-      sendHTML(HomeHTML);
-    });    
-    webServer.on("/wifi", [](){
-      sendHTML(WiFiConfigHTML);
-    });            
-    webServer.on("/config", [](){
-      sendHTML(SysConfigHTML);
-    });
-    webServer.on("/js/sysConfig.js", [](){
-      sendJS(SysConfigJS);
-    });     
-    webServer.on("/conditions", [](){
-      sendHTML(ConditionsHTML);
-    });    
-    webServer.on("/about", [](){
-      sendHTML(AboutHTML);
-    }); 
-       
+    if(url.endsWith(".css")){
+      sendCSS(request);
+      return;
+    }
 
-    //Data Post
-    webServer.on("/wifi/save", wifiSaveRequest);
-    webServer.on("/config/save", configSaveRequest);
+    if(url.endsWith(".js")){
+      sendJS(request);
+      return;
+    }    
+    
+    if(url.indexOf("/font") > -1){
+      if(url.lastIndexOf("/") == -1){
+        request->send(404);
+        return;
+      }      
+      String filename = url.substring(url.lastIndexOf("/"));
+      filename.replace("/", "");
 
-    //Handle Files
-    //webServer.on("/upload", HTTP_POST, [](){ webServer.send(200, "text/plain", ""); }, handleFileUpload);
+      
+      if(filename.lastIndexOf(".") == -1){
+        request->send(404);
+        return;
+      }
 
-    //API URLs
-    webServer.on("/api/getNetworks", getNetworksJSON);
-    webServer.on("/api/getNetworkSettings", getNetworkSettingsJSON);
-    webServer.on("/api/getDeviceDetails", getDeviceDetailsJSON);
-    webServer.on("/api/getConditions", getTempSensorDataJSON);
-    webServer.on("/api/getSysSettings", getSystemSettingsJSON);
+      String SPIFFSName = filename;
+      if(filename.lastIndexOf(".") == -1){
+        request->send(404);
+        return;
+      }
+      
+      String extension = filename.substring(filename.lastIndexOf("."));                
+      if(filename.length() > MAX_SPIFFS_NAME_LEN){
+        SPIFFSName = filename.substring(0, MAX_SPIFFS_NAME_LEN - extension.length());
+        SPIFFSName += extension;
+      }
+
+      if(!SPIFFS.exists("/" + SPIFFSName)){
+        request->send(404);
+        return;
+      }
+
+      extension.replace(".", "");
+      String contentType = "";
+
+      if(extension == "otf")
+        contentType = "font/opentype";
+      else if(extension == "svg")
+        contentType = "image/svg+xml";
+      else if(extension == "ttf")
+        contentType = "application/x-font-ttf";
+      else if(extension == "eot")
+        contentType = "application/vnd.ms-fontobject";
+      else if(extension == "woff")        
+        contentType = "application/font-woff";
+      else if(extension == "woff2")
+        contentType = "application/font-woff2";
+      else      
+        contentType = "application/" + extension;
+      
+      //String output = filename + '\n' + extension + '\n' + contentType;
+      AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/" + SPIFFSName, contentType);
+      response->addHeader("Cache-Control","public, max-age=86400");
+      request->send(response);
+      return;
+    }else{   
+      //Handle Unknown Request
+      request->send(404);
+      return;
+    }
   }
   
-  void getNetworksJSON(){
-    //Make sure authenticated.    
-    if(!isHTTPAuthorized())
-      return;
+  void onBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){}
   
-    int networkCount = WiFi.scanNetworks();
-    String JSON = "{\"networks\":[";
-    for (int i = 0; i < networkCount; i++)
-    {
-      if(i > 0){
-        JSON += ",";
+  void onUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){      
+
+    bool processFile = false;
+    filename.toLowerCase();
+    String extension = "-1";
+    if(filename.lastIndexOf(".") != -1){
+      extension = filename.substring(filename.lastIndexOf("."));
+      extension.replace(".", "");
+    }
+    
+    if(   filename == "bootstrap.min.css"     || 
+          filename == "bootstrap.min.js"      || 
+          filename == "jquery.min.js"         || 
+          filename == "jquery-ui.min.js"      ||        
+          filename == "jquery-ui.min.css"      ||        
+          filename == "site.min.js"           ||             
+          filename == "site.min.css"          ||           
+          filename == "font-awesome.min.css"  ||
+          filename == "weather-icons.min.css" ||
+          extension == "otf"    ||
+          extension == "eot"    ||
+          extension == "svg"    ||
+          extension == "ttf"    ||
+          extension == "woff"   ||
+          extension == "woff2"  
+        ){
+        processFile = true;
+    }else{
+        processFile = false;
+    }
+
+    if(filename.length() > MAX_SPIFFS_NAME_LEN){
+      if(filename.lastIndexOf(".") != -1){
+        String extension = filename.substring(filename.lastIndexOf("."));
+        filename = filename.substring(0, MAX_SPIFFS_NAME_LEN - extension.length());
+        filename += extension;
+      }else{
+        processFile = false;
       }
-      JSON += "{";
-      JSON += "\"SSID\":\"" + String(WiFi.SSID(i)) + "\",";
-      JSON += "\"security\":\"" + String(WiFi.encryptionType(i)) + "\",";
-      JSON += "\"RSSI\":\"" + String(WiFi.RSSI(i)) + "\",";
-      JSON += "\"BSSID\":\"" + WiFi.BSSIDstr(i) + "\",";
-      JSON += "\"channel\":\"" + String(WiFi.channel(i)) + "\",";
-      JSON += "\"isHidden\":" + String(WiFi.isHidden(i) ? "true" : "false") + ",";
-      JSON += "\"selected\":" + String(String(wifiConfig.ssid) == String(WiFi.SSID(i)) ? "true" : "false");
-      JSON += "}";      
+    }
+
+    if(processFile){
+      if(!index){
+        bool removed = SPIFFS.remove("/" + filename);   
+        if(removed)
+          Serial.println("File deleted");
+        else
+          Serial.println("File not deleted");
+        Serial.printf("UploadStart: %s\n", filename.c_str());
+      }
+
+      File f = SPIFFS.open("/" + filename, "a+");
+      if(!f){
+        Serial.println("Unable to open file");
+      }else{
+        for(size_t i = 0; i < len; i++){
+          f.write(data[i]);
+        }        
+      }
+      
+      if(final){
+        Serial.printf("UploadEnd: %s, %u B\n", filename.c_str(), index+len);
+        Serial.print("File Size: ");
+        Serial.println(f.size());
+      }
+      f.close();      
+    }
+  }
+  
+  void onEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+    //Handle WebSocket event
+  }
+  
+  void setupAsyncWebServer(){
+    ws.onEvent(onEvent);
+    webServer.addHandler(&ws);    
+    
+    //attach AsyncEventSource
+    webServer.addHandler(&events);
+    
+    /***********************************************/
+    /* Static PROGMEM HTML                         */
+    /***********************************************/
+    webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+      sendHTML(request, HomeHTML);
+    });       
+    webServer.on("/home", HTTP_GET, [](AsyncWebServerRequest *request){
+      sendHTML(request, HomeHTML);
+    });   
+    webServer.on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request){
+      sendHTML(request, WiFiConfigHTML);
+    });            
+    webServer.on("/config", HTTP_GET, [](AsyncWebServerRequest *request){
+      sendHTML(request, SysConfigHTML);
+    });
+    webServer.on("/js/sysConfig.js", HTTP_GET, [](AsyncWebServerRequest *request){
+      sendJS(request, SysConfigJS);
+    });     
+    webServer.on("/conditions", HTTP_GET, [](AsyncWebServerRequest *request){
+      sendHTML(request, ConditionsHTML);
+    });    
+    webServer.on("/about", HTTP_GET, [](AsyncWebServerRequest *request){
+      sendHTML(request, AboutHTML);
+    });
+
+    /***********************************************/
+    /* File Uploads                                */
+    /***********************************************/
+    webServer.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request){
+      request->send(200);
+    }, onUpload);
+
+
+    /***********************************************/
+    /* Data Post                                   */
+    /***********************************************/
+    webServer.on("/wifi/save", HTTP_POST, [](AsyncWebServerRequest *request){
+      wifiSaveRequest(request);
+    });
+    
+    webServer.on("/config/save", HTTP_POST, [](AsyncWebServerRequest *request){
+      configSaveRequest(request);
+    });
+
+
+    /***********************************************/
+    /* APIs                                        */
+    /***********************************************/
+    webServer.on("/api/getNetworks", HTTP_GET, [](AsyncWebServerRequest *request){
+      getNetworksJSON(request);
+    });
+    
+    webServer.on("/api/getNetworkSettings", HTTP_GET, [](AsyncWebServerRequest *request){ 
+      getNetworkSettingsJSON(request);
+    });
+    
+    webServer.on("/api/getDeviceDetails", HTTP_GET, [](AsyncWebServerRequest *request){ 
+      getDeviceDetailsJSON(request);
+    });
+    webServer.on("/api/getConditions", HTTP_GET, [](AsyncWebServerRequest *request){ 
+      getTempSensorDataJSON(request);
+    });
+    webServer.on("/api/getSysSettings", HTTP_GET, [](AsyncWebServerRequest *request){ 
+      getSystemSettingsJSON(request);
+    });
+
+    
+    /***********************************************/
+    /* Default Handlers                            */
+    /***********************************************/
+    webServer.onNotFound(onRequest);
+    webServer.onFileUpload(onUpload);
+    webServer.onRequestBody(onBody);
+
+    //Start the web server!
+    webServer.begin();    
+  }
+  
+  void sendHTML(AsyncWebServerRequest *request, const char* HTML){
+    if(isHTTPAuthorized(request))
+      request->send_P(200, "text/html", HTML);      
+  }
+  
+  void sendJS(AsyncWebServerRequest *request, const char* JS){   
+    if(!isHTTPAuthorized(request))
+      return;
+       
+    request->send_P(200, "application/javascript", JS);    
+  }
+
+  void sendJS(AsyncWebServerRequest *request){   
+    if(!isHTTPAuthorized(request))
+      return;      
+
+      String url = request->url();
+      url.toLowerCase();
+      if(url.lastIndexOf("/") != -1){
+        String filename = url.substring(url.lastIndexOf("/"));      
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, filename, "application/javascript");
+        response->addHeader("Cache-Control","public, max-age=86400");
+        request->send(response);
+      }else{
+        request->send(404);
+      }      
+  }  
+
+  void sendCSS(AsyncWebServerRequest *request, const char* CSS){ 
+    if(!isHTTPAuthorized(request))
+      return;
+       
+    request->send_P(200, "text/css", CSS);      
+  }
+  
+  void sendCSS(AsyncWebServerRequest *request){    
+    if(!isHTTPAuthorized(request))
+      return;    
+
+      String url = request->url();
+      url.toLowerCase();
+      if(url.lastIndexOf("/") != -1){
+        String filename = url.substring(url.lastIndexOf("/"));      
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, filename, "text/css");
+        response->addHeader("Cache-Control","public, max-age=86400");
+        request->send(response);
+      }else{
+        request->send(404);
+      }
+  } 
+
+  bool isHTTPAuthorized(AsyncWebServerRequest *request){    
+    if(!request->authenticate(sysConfig.username, sysConfig.password))
+    {
+      Serial.print("Login Attempts: ");
+      Serial.println(loginAttempts);
+      if(loginAttempts >= MAX_LOGIN_ATTEMPTS){
+        loginAttempts = 0;
+        request->send(200, "text/html", FourOOneHTML); 
+        return false;
+      }else{
+        loginAttempts ++;
+        request->requestAuthentication();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void getNetworksJSON(AsyncWebServerRequest *request){
+    //Make sure authenticated.    
+    if(!isHTTPAuthorized(request))
+      return;
+
+    String JSON = "{\"networks\":[";
+    int networkCount = WiFi.scanComplete();
+    if(networkCount == -2){
+        WiFi.scanNetworks(true);
+    } else if(networkCount){
+      for (int i = 0; i < networkCount; i++){
+        if(i > 0) JSON += ",";
+        JSON += "{";
+        JSON += "\"SSID\":\"" + String(WiFi.SSID(i)) + "\",";
+        JSON += "\"security\":\"" + String(WiFi.encryptionType(i)) + "\",";
+        JSON += "\"RSSI\":\"" + String(WiFi.RSSI(i)) + "\",";
+        JSON += "\"BSSID\":\"" + WiFi.BSSIDstr(i) + "\",";
+        JSON += "\"channel\":\"" + String(WiFi.channel(i)) + "\",";
+        JSON += "\"isHidden\":" + String(WiFi.isHidden(i) ? "true" : "false") + ",";
+        JSON += "\"selected\":" + String(String(wifiConfig.ssid) == String(WiFi.SSID(i)) ? "true" : "false");
+        JSON += "}"; 
+      }
+      WiFi.scanDelete();
+      if(WiFi.scanComplete() == -2){
+        WiFi.scanNetworks(true);
+      }
     }
     JSON += "]}";
-    webServer.send(200, "application/json", JSON);
+    request->send(200, "application/json", JSON);
+    JSON = String();
   }
 
-  void getNetworkSettingsJSON(){
+  void getNetworkSettingsJSON(AsyncWebServerRequest *request){
     //Make sure authenticated.
-    if(!isHTTPAuthorized())
+    if(!isHTTPAuthorized(request))
       return;
           
     String JSON = "{\"hostname\":\"" + String(wifiConfig.hostname) + "\", \"ssid\":\"" + String(wifiConfig.ssid) + "\"}";
-    webServer.send(200, "application/json", JSON);
+    request->send(200, "application/json", JSON);
   }
 
-  void getDeviceDetailsJSON(){
+  void getDeviceDetailsJSON(AsyncWebServerRequest *request){
     //Make sure authenticated.
-    if(!isHTTPAuthorized())
+    if(!isHTTPAuthorized(request))
       return;
   
     String JSON;
@@ -785,11 +1081,11 @@
     JSON += "\"supplyVoltage\":\"" + String((float)ESP.getVcc() / (float)1000.0) + "\",";
     JSON += "\"supplyVoltageUnit\":\"V\"";
     JSON += "}";      
-    webServer.send(200, "application/json", JSON);    
+    request->send(200, "application/json", JSON);
   }
 
-  void getSystemSettingsJSON(){
-    if(!isHTTPAuthorized())
+  void getSystemSettingsJSON(AsyncWebServerRequest *request){
+    if(!isHTTPAuthorized(request))
       return;
           
     String JSON = "{";
@@ -808,236 +1104,151 @@
     JSON += "\"httpPort\":" + String(sysConfig.httpPort) + ", ";
     JSON += "\"tcpPort\":" + String(sysConfig.tcpPort) + ", ";
     JSON += "\"roomTemperature\":" + String(sysConfig.roomTemp) + ", ";
-    JSON += "\"deleteFileSystem\":" + String(sysConfig.deleteFileSystem ? "true" : "false");
+    JSON += "\"deleteFileSystem\":" + String(sysConfig.deleteFileSystem ? "true" : "false") + ", ";
+    JSON += "\"displayDriver\":\"" + String(sysConfig.displayDriver) + "\", ";
+    JSON += "\"displayWidth\":" + String(sysConfig.displayWidth) + ", ";
+    JSON += "\"displayHeight\":" + String(sysConfig.displayHeight);
     JSON += "}";
-    webServer.send(200, "application/json", JSON);
+    //Serial.println(JSON);
+    request->send(200, "application/json", JSON);
   }
 
-  void getTempSensorDataJSON(){
+  void getTempSensorDataJSON(AsyncWebServerRequest *request){
     //Make sure authenticated.
-    if(!isHTTPAuthorized())
-      return;
-      
-    float temp = dht.readTemperature(true) - TEMP_OFFSET;
-    float humid = dht.readHumidity();    
-    String JSON = "{\"temperature\" : " + String(temp) + ", \"humidity\" : " + String(humid) + "}";
-    webServer.send(200, "application/json", JSON);
-  }
-
-  void sendHTML(const char* HTML){
-    if(!isHTTPAuthorized())
-      return;
-     webServer.send(200, "text/html", HTML);   
-  }
-
-  void sendCSS(const char* CSS){    
-    if(!isHTTPAuthorized())
+    if(!isHTTPAuthorized(request))
       return;    
-     webServer.send(200, "text/css", CSS);   
+    
+    String JSON = "{\"temperature\" : " + String(currentTemp) + ", \"humidity\" : " + String(currentHumid) + "}";    
+    request->send(200, "application/json", JSON);
   }
-
-  void sendJS(const char* JS){   
-    if(!isHTTPAuthorized())
-      return;      
-     webServer.send(200, "application/javascript", JS);   
-  }   
-
-//File fsUploadFile;
-//  void handleFileUpload(){
-//   if(webServer.uri() != "/upload") return;
-//   HTTPUpload& upload = webServer.upload();
-//    if(upload.status == UPLOAD_FILE_START){
-//      String filename = upload.filename;
-//      if(!filename.startsWith("/")) filename = "/"+filename;
-//      Serial.print("handleFileUpload Name: "); Serial.println(filename);
-//      fsUploadFile = SPIFFS.open(filename, "w");
-//      filename = String();
-//    } else if(upload.status == UPLOAD_FILE_WRITE){
-//      //Serial.print("handleFileUpload Data: "); Serial.println(upload.currentSize);
-//      if(fsUploadFile)
-//        fsUploadFile.write(upload.buf, upload.currentSize);
-//    } else if(upload.status == UPLOAD_FILE_END){
-//      if(fsUploadFile)
-//        fsUploadFile.close();
-//      Serial.print("handleFileUpload Size: "); Serial.println(upload.totalSize);
-//    }
-//}
-
-   bool isHTTPAuthorized(){
-    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-    {
-      Serial.print("Login Attempts: ");
-      Serial.println(loginAttempts);
-      if(loginAttempts >= MAX_LOGIN_ATTEMPTS){
-        loginAttempts = 0;
-        webServer.send(200, "text/html", FourOOneHTML);  
-        return false;
-      }else{
-        loginAttempts ++;
-        webServer.requestAuthentication();
-        return false;
-      }
-    }
-    return true;
-   }
-
-  void configSaveRequest(){
-    bool updateScreen = false;
+  
+  void configSaveRequest(AsyncWebServerRequest *request){
+    //bool updateScreen = false;
     
-    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-      return webServer.requestAuthentication();
-    
-    for(int i = 0; i < webServer.args(); i++){
-      if(webServer.argName(i) == "DeviceName"){
-        webServer.arg(i).toCharArray(sysConfig.deviceName, sizeof(sysConfig.deviceName));  
-      }
-      
-      if(webServer.argName(i) == "DeviceLocation"){
-        webServer.arg(i).toCharArray(sysConfig.deviceLocation, sizeof(sysConfig.deviceLocation));
-      }
+    if(!isHTTPAuthorized(request))
+      return;
 
-      if(webServer.argName(i) == "Username" && webServer.arg(i).length() > 0){
-        webServer.arg(i).toCharArray(sysConfig.username, sizeof(sysConfig.username));
+    int args = request->args();
+    for(int i = 0; i < args; i++){
+      if(request->argName(i) == "DeviceName"){
+        request->arg(i).toCharArray(sysConfig.deviceName, sizeof(sysConfig.deviceName));
       }
-
-      if(webServer.argName(i) == "Password" && webServer.arg(i).length() > 0){
-        webServer.arg(i).toCharArray(sysConfig.password, sizeof(sysConfig.password));
+      if(request->argName(i) == "DeviceLocation"){
+        request->arg(i).toCharArray(sysConfig.deviceLocation, sizeof(sysConfig.deviceLocation));
       }
-
-      if(webServer.argName(i) == "Interval"){
+      if(request->argName(i) == "Username" && request->arg(i).length() > 0){
+        request->arg(i).toCharArray(sysConfig.username, sizeof(sysConfig.username));
+      }
+      if(request->argName(i) == "Password" && request->arg(i).length() > 0){
+        request->arg(i).toCharArray(sysConfig.password, sizeof(sysConfig.password));
+      }
+      if(request->argName(i) == "Interval"){
         char temp[10];
-        webServer.arg(i).toCharArray(temp, 10);        
+        request->arg(i).toCharArray(temp, 10);
         sysConfig.interval = (atol(temp) * 1000);
-      }  
-      
-      if(webServer.argName(i) == "HTTPPort"){
+      }
+      if(request->argName(i) == "HTTPPort"){
         char temp[10];
-        webServer.arg(i).toCharArray(temp, 10);
+        request->arg(i).toCharArray(temp, 10);
         sysConfig.httpPort = atol(temp);
-      }  
-
-      if(webServer.argName(i) == "TCPPort"){
+      }
+      if(request->argName(i) == "TCPPort"){
         char temp[10];
-        webServer.arg(i).toCharArray(temp, 10);
+        request->arg(i).toCharArray(temp, 10);
         sysConfig.tcpPort = atol(temp);
-      }        
-
-      if(webServer.argName(i) == "ScreenRotation"){
-        int temp = webServer.arg(i).toInt();
+      }
+      if(request->argName(i) == "ScreenRotation"){
+        int temp = request->arg(i).toInt();
         if(temp != sysConfig.screenRotation){
           sysConfig.screenRotation = temp;
           tft->setRotation(sysConfig.screenRotation);
-          updateScreen = true;
         }
       }
-
-      if(webServer.argName(i) == "DeleteFileSystem"){
-        if(webServer.arg(i) == "true")
+      if(request->argName(i) == "DeleteFileSystem"){
+        if(request->arg(i) == "true")
           sysConfig.deleteFileSystem = true;
         else
           sysConfig.deleteFileSystem = false;
-      } 
-
-      if(webServer.argName(i) == "DisplayClock"){
-        if(webServer.arg(i) == "true")
+      }  
+      if(request->argName(i) == "DisplayClock"){
+        if(request->arg(i) == "true")
           sysConfig.displayClock = true;
         else{
           sysConfig.displayClock = false;
-          isClock = false;
         }
       }  
-
-      if(webServer.argName(i) == "DisplayDate"){
-        bool curVal = sysConfig.displayDate;
-        if(webServer.arg(i) == "true")
+      if(request->argName(i) == "DisplayDate"){
+        if(request->arg(i) == "true")
           sysConfig.displayDate = true;
         else{
           sysConfig.displayDate = false;
         }
-        
-        if(curVal != sysConfig.displayDate)
-          updateScreen = true;
-      }        
-
-      if(webServer.argName(i) == "RoomTemperature"){
-        char temp[10];
-        webServer.arg(i).toCharArray(temp, 10);
-        sysConfig.roomTemp = atoi(temp);
-      }     
-
-      if(webServer.argName(i) == "ClockType"){
-        int curVal = sysConfig.clockType;
-        char temp[10];
-        webServer.arg(i).toCharArray(temp, 10);
-        sysConfig.clockType = atoi(temp);
-
-        if(curVal != sysConfig.clockType)
-          updateScreen = true;
       }  
-
-      if(webServer.argName(i) == "ClockColor"){
-        long curVal = sysConfig.clockColor;
+      if(request->argName(i) == "RoomTemperature"){
+        char temp[10];
+        request->arg(i).toCharArray(temp, 10);
+        sysConfig.roomTemp = atoi(temp);
+      }      
+      if(request->argName(i) == "ClockType"){
+        char temp[10];
+        request->arg(i).toCharArray(temp, 10);
+        sysConfig.clockType = atoi(temp);
+      }      
+      if(request->argName(i) == "ClockColor"){
         char temp[16];
-        webServer.arg(i).toCharArray(temp, 10);
+        request->arg(i).toCharArray(temp, 10);
         sysConfig.clockColor = atol(temp);
-
-        if(curVal != sysConfig.clockColor)
-          updateScreen = true;
-      }     
-
-      if(webServer.argName(i) == "ClockBackgroundColor"){
-        long curVal = sysConfig.clockBkgColor;
+      }      
+      if(request->argName(i) == "ClockBackgroundColor"){
         char temp[16];
-        webServer.arg(i).toCharArray(temp, 10);
+        request->arg(i).toCharArray(temp, 10);
         sysConfig.clockBkgColor = atol(temp);
-
-        if(curVal != sysConfig.clockBkgColor)
-          updateScreen = true;
-      }    
-
-      if(webServer.argName(i) == "LeadingZero"){
-        bool curVal = sysConfig.leadingZero;
-        if(webServer.arg(i) == "true")
+      }  
+      if(request->argName(i) == "LeadingZero"){
+        if(request->arg(i) == "true")
           sysConfig.leadingZero = true;
         else{
           sysConfig.leadingZero = false;
         }
-        
-        if(curVal != sysConfig.leadingZero)
-          updateScreen = true;
-      }
-
-      if(webServer.argName(i) == "TwentyFourHour"){
-        bool curVal = sysConfig.twentyFourHour;
-        if(webServer.arg(i) == "true")
+      }  
+      if(request->argName(i) == "TwentyFourHour"){
+        //bool curVal = sysConfig.twentyFourHour;
+        if(request->arg(i) == "true")
           sysConfig.twentyFourHour = true;
         else{
           sysConfig.twentyFourHour = false;
         }
-        
-        if(curVal != sysConfig.twentyFourHour)
-          updateScreen = true;
-      }                                 
-    }    
-
-    if(updateScreen){
-      eraseScreen();
-      if(isClock && sysConfig.displayClock){            
-        setupScreenClock();
-        printDateTime();
-      }else{
-        setupScreenConditions();
-        printConditions();
       }
-      delay(1);
+
+      if(request->argName(i) == "Interval"){
+        char temp[10];
+        request->arg(i).toCharArray(temp, 10);
+        sysConfig.interval = (atol(temp) * 1000);
+      }
+
+      if(request->argName(i) == "DisplayDriver"){
+        request->arg(i).toCharArray(sysConfig.displayDriver, sizeof(sysConfig.displayDriver));
+      }
+
+      if(request->argName(i) == "DisplayWidth"){
+        char temp[10];
+        request->arg(i).toCharArray(temp, 10);
+        sysConfig.displayWidth = (atol(temp));
+      }
+
+      if(request->argName(i) == "DisplayHeight"){
+        char temp[10];
+        request->arg(i).toCharArray(temp, 10);
+        sysConfig.displayHeight = (atol(temp));
+      }
     }
     
     if(saveSysConfig()){
-      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");      
+      request->send(200, "application/json", "{\"success\":true, \"error\":\"\"}");      
     }else{
-      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");      
+      request->send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");      
     }
-
+    
     if(CONFIG_DEBUG){
       Serial.println("Config Recevied");
       Serial.println("Size of Sys Config: " + String(sizeof(sysConfig)));
@@ -1058,42 +1269,43 @@
       Serial.println("HTTP Port: " + String(sysConfig.httpPort));
       Serial.println("TCP Port: " + String(sysConfig.tcpPort));
       Serial.println("Delete File System: " + String(sysConfig.deleteFileSystem));
+      Serial.println("Display Driver: " + String(sysConfig.displayDriver));
+      Serial.println("Display Width: " + String(sysConfig.displayWidth));
+      Serial.println("Display Height: " + String(sysConfig.displayHeight)); 
     }        
   }
-  
-  void wifiSaveRequest(){
+ 
+  void wifiSaveRequest(AsyncWebServerRequest *request){
     String hostname, ssid, password;
-    if(!webServer.authenticate(sysConfig.username, sysConfig.password))
-        return webServer.requestAuthentication();
-        
-    for(int i = 0; i < webServer.args(); i++){
-      if(webServer.argName(i) == "Hostname"){
-        hostname = webServer.arg(i);
+    if(!isHTTPAuthorized(request))
+      return;
+
+    int args = request->args();
+    for(int i = 0; i < args; i++){
+      if(request->argName(i) == "Hostname"){
+        hostname = request->arg(i);
         //Serial.println("Hostname: " + hostname);
       }
-
-      if(webServer.argName(i) == "SSID"){
-        ssid = webServer.arg(i);
+      if(request->argName(i) == "SSID"){
+        ssid = request->arg(i);
         //Serial.println("SSID: " + ssid);
       }
-
-      if(webServer.argName(i) == "Password"){
-        password = webServer.arg(i);
+      if(request->argName(i) == "Password"){
+        password = request->arg(i);
         //Serial.println("Pass: " + password);
       }
     }
     
-    
     if(hostname.length() <= 0 || ssid.length() <= 0 || password.length() <= 0){
-      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"One or more invalid configuration items.\"}");
+      request->send(200, "application/json", "{\"success\":false, \"error\":\"One or more invalid configuration items.\"}");
     }else if (saveWiFiConfig(hostname, ssid, password)) {
-      webServer.send(200, "application/json", "{\"success\":true, \"error\":\"\"}");
+      request->send(200, "application/json", "{\"success\":true, \"error\":\"\"}");
       setupWiFi();
     }else{
       hostname.toCharArray(wifiConfig.hostname, 30);
       ssid.toCharArray(wifiConfig.ssid, 30);
       password.toCharArray(wifiConfig.password, 30); 
-      webServer.send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");
+      request->send(200, "application/json", "{\"success\":false, \"error\":\"Save Failed! Good until reboot!\"}");
     }    
   }
   
@@ -1143,7 +1355,7 @@
 
   /*******************************************************/
   /*System Configuration                                 */
-  /*******************************************************/
+  /*******************************************************/  
   bool saveSysConfig(){
     EEPROM.begin(512);
     delay(10);
@@ -1196,6 +1408,14 @@
     for(unsigned int t = 0; t < sizeof(sysConfig.deleteFileSystem); t++)
       EEPROM.write(startAddress++, *((bool*)&sysConfig.deleteFileSystem + t)); 
 
+    for(unsigned int t = 0; t < sizeof(sysConfig.displayDriver); t++)
+      EEPROM.write(startAddress++, *((char*)&sysConfig.displayDriver + t));  
+
+    EEPROMWriteLong(sysConfig.displayWidth, startAddress);
+    
+    EEPROMWriteLong(sysConfig.displayHeight, startAddress);
+                 
+
     EEPROM.commit();
     EEPROM.end();
         
@@ -1220,6 +1440,9 @@
       Serial.println("HTTP Port: " + String(sysConfig.httpPort));
       Serial.println("TCP Port: " + String(sysConfig.tcpPort));
       Serial.println("Delete File System: " + String(sysConfig.deleteFileSystem));
+      Serial.println("Display Driver: " + String(sysConfig.displayDriver));
+      Serial.println("Display Width: " + String(sysConfig.displayWidth));
+      Serial.println("Display Height: " + String(sysConfig.displayHeight));          
     }         
     return writeSuccess;    
   }
@@ -1280,6 +1503,13 @@
     for(unsigned int t = 0; t < sizeof(sysConfig.deleteFileSystem); t++)
       *((bool*)&sysConfig.deleteFileSystem + t) = EEPROM.read(startAddress++);
 
+    for(unsigned int t = 0; t < sizeof(sysConfig.displayDriver); t++)
+      *((char*)&sysConfig.displayDriver + t) = EEPROM.read(startAddress++);     
+       
+    sysConfig.displayWidth = EEPROMReadLong(startAddress);
+
+    sysConfig.displayHeight = EEPROMReadLong(startAddress);                 
+
     EEPROM.end();
     
 
@@ -1303,6 +1533,9 @@
       Serial.println("HTTP Port: " + String(sysConfig.httpPort));
       Serial.println("TCP Port: " + String(sysConfig.tcpPort));
       Serial.println("Delete File System: " + String(sysConfig.deleteFileSystem));
+      Serial.println("Display Driver: " + String(sysConfig.displayDriver));
+      Serial.println("Display Width: " + String(sysConfig.displayWidth));
+      Serial.println("Display Height: " + String(sysConfig.displayHeight));          
     }
   }
     
@@ -1334,25 +1567,26 @@
   /*Print conditions from the DHT22 Sensor to the screen */
   /*******************************************************/
   void printConditions(){
-    //Read temp only evert 5 Seconds
+    //Read temp only every 5 Seconds
     unsigned long currentMillis = millis();
     if(currentMillis - lastTempReadMillis > 5000)
     { 
       Serial.println("Read Temp");   
       lastTempReadMillis = currentMillis;
       //Only do a screen refresh when necessary
-      float temp = dht.readTemperature(true);
-      //The temperature in the enclouser gets a little warmer due to the electronics.
-      temp -= TEMP_OFFSET;
+      float temp = dht.readTemperature(true) - TEMP_OFFSET;
+      float humid = dht.readHumidity();
             
       if(SCREEN_WIDTH > 128){
-        float humid = dht.readHumidity();
         printConditionsLarge(temp, humid);
       }else{
+        if(!isnan(humid))
+          currentHumid = humid;
         printConditionsSmall(temp);
       }
     }
   }
+  
   void printConditionsSmall(float temp){
     tft->setFont(&URWGothicLBook18pt8b);
     ui.setTextAlignment(CENTER);
@@ -1367,7 +1601,7 @@
   
   void printConditionsLarge(float temp, float humid){
     tft->setFont(&URWGothicLDegree30pt8b );
-    if(temp != currentTemp && !isnan(temp)){
+    if((temp != currentTemp || forceTempUpdate) && !isnan(temp)){
       currentTemp = temp;
       //Erase existing Temp and Write New Temp. -16 on y0 and +22 on the height becuase '°' has a y-Axis offset of -60.
       tft->fillRect(textOffset, middleOfTop - halfFontHeight - 16, textBoxWidth, (FONT_HEIGHT+22), ILI9341_BLACK);     
@@ -1375,7 +1609,7 @@
     }
     
     //Only do a screen refresh when necessary
-    if(humid != currentHumid && !isnan(humid)){
+    if((humid != currentHumid || forceTempUpdate) && !isnan(humid)){
       currentHumid = humid;
       //Erase existing Humidity and Write New Humidity. +2 on font height to covet offset of the '%' sign
       tft->fillRect(textOffset, middleOfBottom - halfFontHeight, textBoxWidth, (FONT_HEIGHT+2), ILI9341_BLACK);     
@@ -1540,11 +1774,9 @@
         tft->setFont(&Liberation_Sans_16);
         break;
       case 128:
-        SPIFFS.begin(); 
         ui.drawBmp("chicken.bmp", 0, 0);
         yield();
         delay(2000);
-        SPIFFS.end();      
         tft->setFont(&Liberation_Sans_8);
         break;
       default:
@@ -1556,9 +1788,8 @@
   /*******************************************************/
   /* Prepare the screen for displaying the condition     */
   /*******************************************************/
-  void setupScreenConditions(){  
-    currentTemp = -99;
-    currentHumid = -99;
+  void setupScreenConditions(){
+    forceTempUpdate = true;
     ui.setTextAlignment(LEFT);
     //tft->setTextColor(GFX_ORANGE, ILI9341_BLACK);
     ui.setTextColor(GFX_ORANGE, ILI9341_BLACK);
@@ -1570,18 +1801,15 @@
       //Line arcoss the middle of the screen
       tft->drawLine(20, (SCREEN_HEIGHT/2), (SCREEN_WIDTH-20), (SCREEN_HEIGHT/2), GFX_ORANGE);
       //Midpoint of the top half of the screen minus half the hight of the image. X-Offset by 10px for good looks. 
-      SPIFFS.begin(); 
       int imageHeight = 77;
       int imageWidth = 36;    
       int xOffSet = ((ICON_BOX_WIDTH/2) - (imageWidth/2)) + ICON_OFFSET;
       ui.drawBmp("temperature.bmp", xOffSet, ((SCREEN_HEIGHT/4)*1)-(imageHeight/2));
-      
       //Midpoint of the bottm half of the screen minus half the height of the image. X-Offset by 10px for good looks.   
       imageHeight = 67;
       imageWidth = 53;    
       xOffSet = ((ICON_BOX_WIDTH/2) - (imageWidth/2)) + ICON_OFFSET;
       ui.drawBmp("humidity.bmp", xOffSet, ((SCREEN_HEIGHT/4)*3)-(imageHeight/2)); //53x67
-      SPIFFS.end();
     }
   }
 
@@ -1651,7 +1879,6 @@
   /* Web Resources Download / Callback Function          */
   /*******************************************************/  
   void downloadResources(uint8_t percentage) {
-    SPIFFS.begin();
     if(SCREEN_WIDTH > 128 || SCREEN_HEIGHT > 128){
       //char id[5];
       for (int i = 0; i < 21; i++) {
@@ -1671,8 +1898,6 @@
         webResource.downloadFile("http://littlerichele.com/images/chicken.bmp", "chicken.bmp", _downloadCallback);
       }
     }
-        
-    SPIFFS.end();    
   }
 
   void downloadCallback(String filename, int16_t bytesDownloaded, int16_t bytesTotal) {
