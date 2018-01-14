@@ -23,13 +23,13 @@ var getUsers = function(callback){
                     throw err;
 
                 if(rows.length <= 0){
-                    console.log("No Users");
+                    console.log('No Users');
                     callback(null);
                     return;
                 }
 
                 var users = new Array();
-                for(i=0, len = rows.length; i < len; i++){
+                for(var i=0, len = rows.length; i < len; i++){
                     users.push(new user(rows[i].UserID, rows[i].Name, rows[i].EMail, rows[i].CellPhone, rows[i].SMSAddress, rows[i].SendAlerts[0], rows[i].isActive[0]));
                 }
                 callback(users);
@@ -41,7 +41,7 @@ var getUsers = function(callback){
         sqlConn.destroy();
     }
     //callback(null);
-}
+};
 
 module.exports = {
     user,

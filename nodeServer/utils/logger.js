@@ -1,23 +1,23 @@
 var mysql = require('mysql');
-var connInfo = require('../configs/mysqlConfig.js')
-var sensorBoards = require('../models/sensorBoard.js')
-var monitor = require('../utils/monitor.js')
+var connInfo = require('../configs/mysqlConfig.js');
+var sensorBoards = require('../models/sensorBoard.js');
+var monitor = require('../utils/monitor.js');
 
 var logConditions = function (callback){
     try{
         sensorBoards.boards(function(boards){ 
             //console.log(boards);
-            for(i = 0, len = boards.length; i < len; i++ ){  
+            for(var i = 0, len = boards.length; i < len; i++ ){  
                 logConditionsForBaord(boards[i], function(result){
                     callback(result);
                 });
             }
         });
     }catch(err){
-        console.error("Log Conditions Failure");
+        console.error('Log Conditions Failure');
         console.error(err);
     }
-}
+};
 
 var logConditionsForBaord = function (board, callback){
     var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
@@ -32,9 +32,9 @@ var logConditionsForBaord = function (board, callback){
             sqlConn.end();
         });
     });
-}
+};
 
 module.exports = {
     logConditions,
     logConditionsForBaord,
-}
+};

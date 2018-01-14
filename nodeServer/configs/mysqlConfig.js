@@ -11,8 +11,8 @@ const gardenShed = {
     user    : 'pi',        
     password: 'df6g87df',
     database: 'gardenShed'
-}
+};
 
 module.exports = {
     gardenShedConn : gardenShed
-}
+};

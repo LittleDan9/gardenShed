@@ -3,7 +3,7 @@ var net = require('net');
 var mysql = require('mysql');
 
 //Local Scripts
-var dateHelp = require('../utils/dateHelper.js')
+//var dateHelp = require('../utils/dateHelper.js');
 var connInfo = require('../configs/mysqlConfig.js');
 
 //Global variables
@@ -13,29 +13,30 @@ var conditions = function (temp, humidity, status, observed, isLive){
     this.temp = temp;
     this.humidity = humidity;
     this.status = status;
-    this.observed = !(observed instanceof Date) ? new Date() : observed
+    this.observed = !(observed instanceof Date) ? new Date() : observed;
     this.isLive = isLive;
-}
+};
 
 var conditionsByBoard = function(board, fromDB, callback){
     var options = {
         port:board.port,
         host:board.hostname,
-    }
+    };
     try{
         var client = new net.Socket();
         client.connect(options, function(data) {
             try{
                 client.write(command);
             }catch(err){
-                console.error("Unable to connect to:" + options);
+                console.error('Unable to connect to:' + options);
+                console.error(data);
                 console.error(err);
                 client.destroy();
             }
         });    
         client.on('data', function(data) { 
             if(data == '')  
-            return;
+                return;
             try{
                 //Parse the response a JSON object
                 var response = JSON.parse(data);
@@ -56,8 +57,8 @@ var conditionsByBoard = function(board, fromDB, callback){
                     var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
                     try{
                         sqlConn.connect();
-                        var query = "SELECT Temperature, Humidity, Updated FROM tConditions WHERE BoardID = ? ORDER BY ConditionID DESC LIMIT 1"
-                        sqlConn.query(query, [board.boardId], function(err, rows, fields){
+                        var query = 'SELECT Temperature, Humidity, Updated FROM tConditions WHERE BoardID = ? ORDER BY ConditionID DESC LIMIT 1';
+                        sqlConn.query(query, [board.boardId], function(err, rows/*, fields*/){
                             //console.log(response.data.status + "test");
                             if(err)
                                 throw err;
@@ -65,7 +66,7 @@ var conditionsByBoard = function(board, fromDB, callback){
                             client.end();
                         });
                     }catch(err){
-                        console.error("Failed reading database:");
+                        console.error('Failed reading database:');
                         console.error(err);
                         client.destroy();
                     }
@@ -74,7 +75,7 @@ var conditionsByBoard = function(board, fromDB, callback){
                 }
                 client.destroy();
             }catch(err){
-                console.error("Data Received Error:");
+                console.error('Data Received Error:');
                 console.log(data);
                 console.error(err);
                 client.destroy();
@@ -86,13 +87,13 @@ var conditionsByBoard = function(board, fromDB, callback){
             //Right now do nothing.
         });   
     }catch(err){
-        console.error("Issue connecting to remote server. ");
+        console.error('Issue connecting to remote server. ');
         console.error(options);
         console.error(err);
     }
-}
+};
 
 module.exports = {
     conditions,
     conditionsByBoard
-}
+};

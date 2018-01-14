@@ -1,5 +1,5 @@
-var notification = require("../models/notification.js");
-var sensorBoards = require('../models/sensorBoard.js');
+var notification = require('../models/notification.js');
+//var sensorBoards = require('../models/sensorBoard.js');
 
 var compareTemperature = function(conditions, boardId){
     // console.log("In Monitor: ");
@@ -8,11 +8,11 @@ var compareTemperature = function(conditions, boardId){
     notification.getNotificationsForBoard(boardId, function(notifications){
         if(notifications == undefined)
         {   
-            console.log("Invalid Conditions in Monitor.");
-            return false
+            console.log('Invalid Conditions in Monitor.');
+            return false;
         }
 
-        for(i = 0; i < notifications.length; i++){
+        for(var i = 0; i < notifications.length; i++){
             var send = false;
             var notification = notifications[i];
             //console.log("Temp: " + conditions.temp + " Compare To: " + notification.compareValue);
@@ -33,14 +33,14 @@ var compareTemperature = function(conditions, boardId){
             //console.log(notification);
 
             if(send){
-                var icons = '⚠❗🚨🌱🐓';
-                var txtMessage = "";
+                //var icons = '⚠❗🚨🌱🐓';
+                var txtMessage = '';
                 txtMessage += '🚨' + notification.boardName + ' Alert🚨\n';
                 txtMessage += '-------------------------\n';
                 //txtMessage += '' + " Observation Time: " + conditions.observed + "\n";
-                txtMessage += "🌡 Temperature: " + conditions.temp + "°\n";
-                txtMessage += "💧 Humidity: " + conditions.humidity + "%\n";
-                txtMessage += "🌱🐓🌱🐓🌱🐓🌱🐓🌱"
+                txtMessage += '🌡 Temperature: ' + conditions.temp + '°\n';
+                txtMessage += '💧 Humidity: ' + conditions.humidity + '%\n';
+                txtMessage += '🌱🐓🌱🐓🌱🐓🌱🐓🌱';
                 //txtMessage += "🌱🌱🌱🌱🌱🌱🌱🌱🌱";
 
                 var htmlMessage = '<body>';
@@ -54,12 +54,15 @@ var compareTemperature = function(conditions, boardId){
                 //htmlMessage += '<p style="text-align:center;"><center>🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱</center></p>';
                 htmlMessage += '</div>';
                 htmlMessage += '</body>';
-                notification.send(txtMessage, htmlMessage, false, function(result){
-                //console.log(result);
+                notification.send(txtMessage, htmlMessage, false, function(results){
+                    if(!results){
+                        console.error('notification.send failed');
+                    }
+                    //console.log(result);
                 });
             }
         }
     });
-}
+};
 
 module.exports = {compareTemperature};
