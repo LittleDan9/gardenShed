@@ -1,4 +1,4 @@
-Raspbery Pi - Node.js (Express), JavaScript, MySQL
+Raspbery Pi - Node.js (Express), JavaScript, MariaSQL
 ==========================================================================================================================================
 TODO: Write the README.
 

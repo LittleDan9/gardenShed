@@ -1,5 +1,5 @@
-var mysql = require('mysql');
-var connInfo = require('../configs/mysqlConfig.js');
+var dbConn = require('mariasql');
+var connInfo = require('../configs/dbConfig.js');
 var notifyConfig = require('../configs/notificationConfig.js');
 var user = require('./user.js');
 var nodemailer = require('nodemailer');
@@ -26,7 +26,7 @@ notification.prototype.delete = function (callback) {
 };
 
 var del = function (notificationId, callback) {
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err) throw err;
@@ -49,7 +49,7 @@ var del = function (notificationId, callback) {
 };
 
 notification.prototype.save = function (callback) {
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     try {
         //Atempt to get from DB
         sqlConn.connect(function (err) {
@@ -137,12 +137,12 @@ notification.prototype.send = function (txtMessage, htmlMessage, forceSend, call
                         });
                     }
                 }
-                var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+                var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
                 try {
                     sqlConn.connect(function (err) {
                         if (err)
                             throw err;
-                        sqlConn.query('UPDATE tNotifications SET LastSent = ? WHERE NotificationID = ?', [new Date().toMysqlFormat(), notificationId], function (err, results) {
+                        sqlConn.query('UPDATE tNotifications SET LastSent = ? WHERE NotificationID = ?', [new Date().toDbFormat(), notificationId], function (err, results) {
                             if (err){
                                 console.error(results);
                                 throw err;                                
@@ -163,7 +163,7 @@ notification.prototype.send = function (txtMessage, htmlMessage, forceSend, call
 };
 
 var getNotification = function (notificationId, callback) {
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     //console.log(boardId);
     try {
         sqlConn.connect(function (err) {
@@ -201,7 +201,7 @@ var getNotification = function (notificationId, callback) {
 
 var getNotifications = function getNotificiations(callback) {
     //console.log("In getNotifications");
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err)
@@ -237,7 +237,7 @@ var getNotifications = function getNotificiations(callback) {
 
 var getNotificationsForBoard = function getNotificiations(boardId, callback) {
     //console.log("In getNotifications");
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err)
@@ -276,7 +276,7 @@ var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo,
     // console.log('isGreaterThan:' + isGreaterThan);
     // console.log('isLessThan:' + isLessThan);
     // console.log('isEqualTo:' + isEqualTo);
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err) throw err;
@@ -301,7 +301,7 @@ function twoDigits(d) {
     return d.toString();
 }
 
-Date.prototype.toMysqlFormat = function () {
+Date.prototype.toDbFormat = function () {
     var value = this.getFullYear() + '-' + twoDigits(this.getMonth() + 1) + '-' + twoDigits(this.getDate()) + ' ' + twoDigits(this.getHours()) + ':' + twoDigits(this.getMinutes()) + ':' + twoDigits(this.getSeconds());
     return value;
 };

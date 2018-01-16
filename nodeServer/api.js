@@ -21,10 +21,10 @@ if (cluster.isMaster) {
         cluster.fork();
     });
 } else {
-    //Check to make sure the mySQL config file was updated.
-    var sqlConfig = require('./configs/mysqlConfig.js');
+    //Check to make sure the database config file was updated.
+    var sqlConfig = require('./configs/dbConfig.js');
     if (sqlConfig.gardenShedConn.host == '[host]') {
-        console.error('You must configure your mysql connection. ./configs/mysqlConfig.js');
+        console.error('You must configure your database connection. ./configs/dbConfig.js');
         process.exit(1);
         //return;
         //break;

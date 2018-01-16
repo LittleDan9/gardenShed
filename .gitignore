@@ -48,6 +48,7 @@ jspm_packages
 
 #sensitive files
 mysqlConfig.js
+dbCOnfig.js
 nohup.out
 #WiFiConfig.h
 .gitignore

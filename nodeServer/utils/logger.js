@@ -1,5 +1,5 @@
-var mysql = require('mysql');
-var connInfo = require('../configs/mysqlConfig.js');
+var dbConn = require('mariasql');
+var connInfo = require('../configs/dbConfig.js');
 var sensorBoards = require('../models/sensorBoard.js');
 var monitor = require('../utils/monitor.js');
 
@@ -20,7 +20,7 @@ var logConditions = function (callback){
 };
 
 var logConditionsForBaord = function (board, callback){
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     board.getConditions(false, function(conditions){
         //console.log("Excuting Monitor");
         monitor.compareTemperature(conditions, board.boardId);

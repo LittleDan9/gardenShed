@@ -1,5 +1,5 @@
-var mysql = require('mysql');
-var connInfo = require('../configs/mysqlConfig.js');
+var dbConn = require('mariasql');
+var connInfo = require('../configs/dbConfig.js');
 var conditions = require('./conditions.js');
 
 function board(boardId, chipId, desc, created, modified, hostname, port) {
@@ -30,7 +30,7 @@ board.prototype.update = function (callback) {
             if (!oldBoard)
                 throw new Error('Board does not exist');
 
-            var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+            var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
             try {
                 sqlConn.connect(function (err) {
                     if (err)
@@ -62,7 +62,7 @@ board.prototype.update = function (callback) {
 };
 
 var boards = function getBoards(callback) {
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err)
@@ -89,7 +89,7 @@ var boards = function getBoards(callback) {
 };
 
 var getBoard = function getBoard(boardId, callback) {
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     //console.log(boardId + "test");
     try {
         sqlConn.connect(function (err) {

@@ -1,5 +1,5 @@
-var mysql = require('mysql');
-var connInfo = require('../configs/mysqlConfig.js');
+var dbConn = require('mariasql');
+var connInfo = require('../configs/dbConfig.js');
 
 var user = function user (userId, name, eMail, cellPhone, smsAddress, sendAlerts, isActive){
     this.userId = userId;
@@ -12,7 +12,7 @@ var user = function user (userId, name, eMail, cellPhone, smsAddress, sendAlerts
 };
 
 var getUsers = function(callback){
-    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
     try{        
         sqlConn.connect(function(err){
             if(err)

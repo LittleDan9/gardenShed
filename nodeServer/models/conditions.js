@@ -1,10 +1,10 @@
 
 var net = require('net');
-var mysql = require('mysql');
+var dbConn = require('mariasql');
 
 //Local Scripts
 //var dateHelp = require('../utils/dateHelper.js');
-var connInfo = require('../configs/mysqlConfig.js');
+var connInfo = require('../configs/dbConfig.js');
 
 //Global variables
 var command = 'TH';
@@ -54,7 +54,7 @@ var conditionsByBoard = function(board, fromDB, callback){
                     client.end();        
                 }else if(fromDB){
                     //Atempt to get from DB
-                    var sqlConn = mysql.createConnection(connInfo.gardenShedConn);
+                    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
                     try{
                         sqlConn.connect();
                         var query = 'SELECT Temperature, Humidity, Updated FROM tConditions WHERE BoardID = ? ORDER BY ConditionID DESC LIMIT 1';
