@@ -68,7 +68,7 @@ var boards = function getBoards(callback) {
             if (err)
                 throw err;
 
-            sqlConn.query('SELECT * FROM tBoards WHERE isActive = 1', function (err, rows, fields) {
+            sqlConn.query('SELECT * FROM tBoards WHERE isActive = 1', function (err, rows) {
                 //console.log(rows);
                 if (err)
                     throw err;
@@ -96,7 +96,7 @@ var getBoard = function getBoard(boardId, callback) {
             if (err)
                 throw err;
 
-            sqlConn.query('SELECT * FROM tBoards WHERE BoardID = ?', [boardId], function (err, rows, fields) {
+            sqlConn.query('SELECT * FROM tBoards WHERE BoardID = ?', [boardId], function (err, rows) {
                 if (err)
                     throw err;
                 //console.log(rows);

@@ -18,7 +18,7 @@ var getUsers = function(callback){
             if(err)
                 throw err;
 
-            sqlConn.query('SELECT * FROM tUsers WHERE isActive = 1', function(err, rows, fields){
+            sqlConn.query('SELECT * FROM tUsers WHERE isActive = 1', function(err, rows){
                 if(err)
                     throw err;
 

@@ -55,7 +55,7 @@ notification.prototype.save = function (callback) {
         sqlConn.connect(function (err) {
             if (err)
                 throw err;
-            sqlConn.query('INSERT INTO tNotifications SET ?', { CompareValue: this.compareValue, isGreater: this.isGreater, isLessThan: this.isLessThan, isEqualTo: this.isEqualTo, boardID: this.boardId }, function (err, results) {
+            sqlConn.query('INSERT INTO tNotifications SET CompareValue = :CompareValue, isGreater = :isGreater, isLessThan = :isLessThan, isEqualTo = :isEqualTo, boardID = :boardId }, function (err, results) {', { CompareValue: this.compareValue, isGreater: this.isGreater, isLessThan: this.isLessThan, isEqualTo: this.isEqualTo, boardID: this.boardId }, function (err, results) {
                 if (err){
                     console.error(results);
                     throw err;
@@ -281,7 +281,7 @@ var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo,
         sqlConn.connect(function (err) {
             if (err) throw err;
             //Update the dabase with the new information
-            sqlConn.query('INSERT INTO tNotifications SET ?', { CompareValue: compareValue, isGreaterThan: isGreaterThan, isLessThan: isLessThan, isEqualTo: isEqualTo, BoardID: boardId }, function (err, results) {
+            sqlConn.query('INSERT INTO tNotifications SET CompareValue = :compareValue, isGreaterThan = :isGreaterThan, isLessThan = :isLessThan, isEqualTo = :isEqualTo, BoardID = :BoardId ', { CompareValue: compareValue, isGreaterThan: isGreaterThan, isLessThan: isLessThan, isEqualTo: isEqualTo, BoardID: boardId }, function (err, results) {
                 if (err) throw err;
                 sqlConn.end();
                 callback(new notification(results.insertId, compareValue, new Date, isGreaterThan, isLessThan, isEqualTo, boardId, true));

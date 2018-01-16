@@ -24,8 +24,7 @@ var logConditionsForBaord = function (board, callback){
     board.getConditions(false, function(conditions){
         //console.log("Excuting Monitor");
         monitor.compareTemperature(conditions, board.boardId);
-        sqlConn.query('INSERT INTO tConditions SET BoardID = :BoardID, Temperature = :Temperature, Humidity = :Humidity, Status = :Status', 
-        { BoardID: board.boardId, Temperature: conditions.temp, Humidity: conditions.humidity, Status: conditions.status}, function(err, result){
+        sqlConn.query('INSERT INTO tConditions SET BoardID = :BoardID, Temperature = :Temperature, Humidity = :Humidity, Status = :Status', { BoardID: board.boardId, Temperature: conditions.temp, Humidity: conditions.humidity, Status: conditions.status}, function(err, result){
             if(err)
                 throw err;
                         
