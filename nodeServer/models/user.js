@@ -12,7 +12,7 @@ var user = function user (userId, name, eMail, cellPhone, smsAddress, sendAlerts
 };
 
 var getUsers = function(callback){
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     try{        
         sqlConn.connect(function(err){
             if(err)

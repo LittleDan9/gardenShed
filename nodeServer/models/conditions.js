@@ -54,7 +54,7 @@ var conditionsByBoard = function(board, fromDB, callback){
                     client.end();        
                 }else if(fromDB){
                     //Atempt to get from DB
-                    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+                    var sqlConn = new dbConn (connInfo.gardenShedConn);
                     try{
                         sqlConn.connect();
                         var query = 'SELECT Temperature, Humidity, Updated FROM tConditions WHERE BoardID = ? ORDER BY ConditionID DESC LIMIT 1';

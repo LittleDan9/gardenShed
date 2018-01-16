@@ -20,7 +20,7 @@ var logConditions = function (callback){
 };
 
 var logConditionsForBaord = function (board, callback){
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     board.getConditions(false, function(conditions){
         //console.log("Excuting Monitor");
         monitor.compareTemperature(conditions, board.boardId);

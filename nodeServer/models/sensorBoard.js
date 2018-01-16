@@ -30,7 +30,7 @@ board.prototype.update = function (callback) {
             if (!oldBoard)
                 throw new Error('Board does not exist');
 
-            var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+            var sqlConn = new dbConn(connInfo.gardenShedConn);
             try {
                 sqlConn.connect(function (err) {
                     if (err)
@@ -62,7 +62,7 @@ board.prototype.update = function (callback) {
 };
 
 var boards = function getBoards(callback) {
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err)
@@ -89,7 +89,7 @@ var boards = function getBoards(callback) {
 };
 
 var getBoard = function getBoard(boardId, callback) {
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     //console.log(boardId + "test");
     try {
         sqlConn.connect(function (err) {

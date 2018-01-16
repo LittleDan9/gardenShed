@@ -26,7 +26,7 @@ notification.prototype.delete = function (callback) {
 };
 
 var del = function (notificationId, callback) {
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err) throw err;
@@ -49,7 +49,7 @@ var del = function (notificationId, callback) {
 };
 
 notification.prototype.save = function (callback) {
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     try {
         //Atempt to get from DB
         sqlConn.connect(function (err) {
@@ -137,7 +137,7 @@ notification.prototype.send = function (txtMessage, htmlMessage, forceSend, call
                         });
                     }
                 }
-                var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+                var sqlConn = new dbConn(connInfo.gardenShedConn);
                 try {
                     sqlConn.connect(function (err) {
                         if (err)
@@ -163,7 +163,7 @@ notification.prototype.send = function (txtMessage, htmlMessage, forceSend, call
 };
 
 var getNotification = function (notificationId, callback) {
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     //console.log(boardId);
     try {
         sqlConn.connect(function (err) {
@@ -201,7 +201,7 @@ var getNotification = function (notificationId, callback) {
 
 var getNotifications = function getNotificiations(callback) {
     //console.log("In getNotifications");
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err)
@@ -237,7 +237,7 @@ var getNotifications = function getNotificiations(callback) {
 
 var getNotificationsForBoard = function getNotificiations(boardId, callback) {
     //console.log("In getNotifications");
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err)
@@ -276,7 +276,7 @@ var create = function update(compareValue, isGreaterThan, isLessThan, isEqualTo,
     // console.log('isGreaterThan:' + isGreaterThan);
     // console.log('isLessThan:' + isLessThan);
     // console.log('isEqualTo:' + isEqualTo);
-    var sqlConn = dbConn.createConnection(connInfo.gardenShedConn);
+    var sqlConn = new dbConn(connInfo.gardenShedConn);
     try {
         sqlConn.connect(function (err) {
             if (err) throw err;
