@@ -23,9 +23,11 @@ var conditionsByBoard = function(board, fromDB, callback){
         host:board.hostname,
     };
     try{
-        var client = new net.Socket();
-        client.connect(options, function(data) {
+        //var client = new net.Socket();
+        //client.connect(options, function(data) {
+        var client = net.createConnection(options, () => {
             try{
+                console.log('here');
                 client.write(command);
             }catch(err){
                 console.error('Unable to connect to:' + options);
@@ -33,8 +35,13 @@ var conditionsByBoard = function(board, fromDB, callback){
                 console.error(err);
                 client.destroy();
             }
-        });    
-        client.on('data', function(data) { 
+        });   
+        client.on('error', (err) => { 
+            console.error(err);
+            callback(new conditions(NaN, NaN, -1, new Date(), false));
+            return;
+        }); 
+        client.on('data', (data) => { 
             if(data == '')  
                 return;
             try{
@@ -81,8 +88,7 @@ var conditionsByBoard = function(board, fromDB, callback){
                 client.destroy();
             }   
         });
-
-        client.on('close', function() {
+        client.on('close', () => {
             //console.log('Client Closed');
             //Right now do nothing.
         });   

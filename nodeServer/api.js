@@ -54,6 +54,7 @@ if (cluster.isMaster) {
 	 **********************************************************************/
     var sensorBoards = require('./models/sensorBoard.js');
     var notifications = require('./models/notification.js');
+    var conditions = require('./models/conditions.js');
     var user = require('./models/user.js');
     var dtHelper = require('./utils/dateHelper.js');
     var logger = require('./utils/logger.js');
@@ -86,6 +87,7 @@ if (cluster.isMaster) {
                 console.error('Logger Failed');
                 console.error(err);
             }
+            /*
             setInterval(function () {
                 try {
                     //console.log('Started Logging');
@@ -103,6 +105,7 @@ if (cluster.isMaster) {
                     console.error(err);
                 }
             }, 60000);
+            */
         } catch (err) {
             console.error(err);
         }
@@ -138,11 +141,20 @@ if (cluster.isMaster) {
         try {
             var boardId = req.params.boardId;
             sensorBoards.getBoard(boardId, function (board) {
-                if(board.isActive){
-                    board.getConditions(true, function (conditions) {
-                        resp.send(conditions);
-                    });
-                    resp.send('Board isn\'t active!');
+                //console.log(board);
+                try{
+                    if(!board){
+                        console.error('Board ' + boardId + ' isn\'t registered!'); 
+                    }else if(board.isActive){
+                        board.getConditions(true, function (conditions) {
+                            resp.send(conditions);
+                        });
+                    }else{
+                        console.error('Board ' + boardId + ' isn\'t active!');
+                    }
+                    resp.send(new conditions.conditions(NaN, NaN, -1, new Date(), false));
+                }catch (err){
+                    console.error(err);
                 }
             });
         } catch (err) {
