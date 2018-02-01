@@ -54,3 +54,4 @@ nohup.out
 .gitignore
 *.jar
 notificationConfig.js
+.vscode
