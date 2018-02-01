@@ -138,9 +138,12 @@ if (cluster.isMaster) {
         try {
             var boardId = req.params.boardId;
             sensorBoards.getBoard(boardId, function (board) {
-                board.getConditions(true, function (conditions) {
-                    resp.send(conditions);
-                });
+                if(board.isActive){
+                    board.getConditions(true, function (conditions) {
+                        resp.send(conditions);
+                    });
+                    resp.send('Board isn\'t active!');
+                }
             });
         } catch (err) {
             console.error(err);
