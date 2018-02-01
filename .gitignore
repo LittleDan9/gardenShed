@@ -55,3 +55,5 @@ nohup.out
 *.jar
 notificationConfig.js
 .vscode
+._.DS_*
+.DS_Store
