@@ -2,7 +2,7 @@ var dbConn = require('mariasql');
 var connInfo = require('../configs/dbConfig.js');
 var conditions = require('./conditions.js');
 
-function board(boardId, chipId, desc, created, modified, hostname, port) {
+function board(boardId, chipId, desc, created, modified, hostname, port, isActive) {
     this.boardId = boardId;
     this.chipId = chipId;
     this.description = desc;
@@ -10,6 +10,7 @@ function board(boardId, chipId, desc, created, modified, hostname, port) {
     this.modified = modified;
     this.hostname = hostname;
     this.port = port;
+    this.isActive = isActive;
 }
 
 board.prototype.getConditions = function (fromDB, callback) {
@@ -75,13 +76,14 @@ var boards = function getBoards(callback) {
 
                 var boards = new Array();
                 for (var i = 0, len = rows.length; i < len; i++) {
-                    boards.push(new board(rows[i].BoardID, rows[i].ChipID, rows[i].Description, rows[i].Created, rows[i].Updated, rows[i].Hostname, rows[i].Port));
+                    boards.push(new board(rows[i].BoardID, rows[i].ChipID, rows[i].Description, rows[i].Created, rows[i].Updated, rows[i].Hostname, rows[i].Port, rows[i].isActive));
                 }
                 callback(boards);
                 sqlConn.end();
             });
         });
     } catch (err) {
+        console.trace();
         console.error(err);
         sqlConn.destroy();
     }
@@ -102,7 +104,7 @@ var getBoard = function getBoard(boardId, callback) {
                 //console.log(rows);
                 sqlConn.end();
                 if (rows.length > 0) {
-                    callback(new board(rows[0].BoardID, rows[0].ChipID, rows[0].Description, rows[0].Created, rows[0].Updated, rows[0].Hostname, rows[0].Port));
+                    callback(new board(rows[0].BoardID, rows[0].ChipID, rows[0].Description, rows[0].Created, rows[0].Updated, rows[0].Hostname, rows[0].Port, rows[0].isActive));
                 } else {
                     callback(null);
                 }

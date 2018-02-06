@@ -143,16 +143,20 @@ if (cluster.isMaster) {
             sensorBoards.getBoard(boardId, function (board) {
                 //console.log(board);
                 try{
+                    var errMessage;
                     if(!board){
-                        console.error('Board ' + boardId + ' isn\'t registered!'); 
+                        errMessage = 'Board ' + boardId + ' isn\'t registered!'; 
                     }else if(board.isActive){
                         board.getConditions(true, function (conditions) {
                             resp.send(conditions);
                         });
                     }else{
-                        console.error('Board ' + boardId + ' isn\'t active!');
+                        errMessage = 'Board ' + boardId + ' isn\'t active!';
                     }
-                    resp.send(new conditions.conditions(NaN, NaN, -1, new Date(), false));
+                    if(errMessage && errMessage.length > 0){
+                        console.error(errMessage);
+                        resp.send(new conditions.conditions(NaN, NaN, -1, new Date(), false));
+                    }
                 }catch (err){
                     console.error(err);
                 }

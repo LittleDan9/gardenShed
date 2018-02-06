@@ -18,6 +18,7 @@ var conditions = function (temp, humidity, status, observed, isLive){
 };
 
 var conditionsByBoard = function(board, fromDB, callback){
+    //console.log('Conditions By Board');
     var options = {
         port:board.port,
         host:board.hostname,
@@ -27,21 +28,21 @@ var conditionsByBoard = function(board, fromDB, callback){
         //client.connect(options, function(data) {
         var client = net.createConnection(options, () => {
             try{
-                console.log('here');
                 client.write(command);
             }catch(err){
                 console.error('Unable to connect to:' + options);
-                console.error(data);
                 console.error(err);
                 client.destroy();
             }
         });   
         client.on('error', (err) => { 
             console.error(err);
-            callback(new conditions(NaN, NaN, -1, new Date(), false));
-            return;
+            //callback(new conditions(NaN, NaN, -1, new Date(), false));
+            //return;
         }); 
         client.on('data', (data) => { 
+            //console.log('Data Received');
+            //console.log(data);
             if(data == '')  
                 return;
             try{
@@ -56,9 +57,9 @@ var conditionsByBoard = function(board, fromDB, callback){
                 if(response.data.status >= 0){
                     temp = response.data.conditions.temp;
                     humid = response.data.conditions.humid;
-                    isLive = true;    
+                    isLive = true;
                     callback(new conditions(temp, humid, status, observed, isLive));  
-                    client.end();        
+                    client.end();       
                 }else if(fromDB){
                     //Atempt to get from DB
                     var sqlConn = new dbConn (connInfo.gardenShedConn);
@@ -83,12 +84,12 @@ var conditionsByBoard = function(board, fromDB, callback){
                 client.destroy();
             }catch(err){
                 console.error('Data Received Error:');
-                console.log(data);
+                //console.log(data);
                 console.error(err);
                 client.destroy();
             }   
         });
-        client.on('close', () => {
+        client.on('close', () => {            
             //console.log('Client Closed');
             //Right now do nothing.
         });   
